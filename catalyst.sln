@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Catalyst", "Catalyst\Catalyst.csproj", "{8BFEFDF4-04B5-4B16-B865-0624CB1DB2B1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Catalyst.Tests", "Catalyst.Tests\Catalyst.Tests.csproj", "{B70C5775-293C-4349-AA14-C610081E04DB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Catalyst.WPF", "Catalyst.WPF\Catalyst.WPF.csproj", "{70216926-3596-4996-A358-28A6D460021F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8BFEFDF4-04B5-4B16-B865-0624CB1DB2B1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8BFEFDF4-04B5-4B16-B865-0624CB1DB2B1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8BFEFDF4-04B5-4B16-B865-0624CB1DB2B1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8BFEFDF4-04B5-4B16-B865-0624CB1DB2B1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B70C5775-293C-4349-AA14-C610081E04DB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B70C5775-293C-4349-AA14-C610081E04DB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B70C5775-293C-4349-AA14-C610081E04DB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B70C5775-293C-4349-AA14-C610081E04DB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{70216926-3596-4996-A358-28A6D460021F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{70216926-3596-4996-A358-28A6D460021F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{70216926-3596-4996-A358-28A6D460021F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{70216926-3596-4996-A358-28A6D460021F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

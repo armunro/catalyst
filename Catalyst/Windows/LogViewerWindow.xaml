@@ -1,0 +1,79 @@
+﻿<ui:FluentWindow x:Class="Catalyst.Windows.LogViewerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:local="clr-namespace:Catalyst.Windows"
+        mc:Ignorable="d"
+        Title="Log Viewer" Height="500" Width="850"
+        WindowBackdropType="Mica"
+        ExtendsContentIntoTitleBar="True"
+        WindowStartupLocation="CenterOwner">
+
+    <Grid Background="Transparent">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/> <!-- TitleBar -->
+            <RowDefinition Height="Auto"/> <!-- Header Controls -->
+            <RowDefinition Height="*"/>    <!-- Console / Log view -->
+            <RowDefinition Height="Auto"/> <!-- Status -->
+        </Grid.RowDefinitions>
+
+        <!-- TitleBar -->
+        <ui:TitleBar Grid.Row="0" Title="Catalyst - Log Viewer"/>
+
+        <!-- Header / Toolbar -->
+        <Border Grid.Row="1" Background="#15FFFFFF" Padding="12,8" BorderBrush="#20FFFFFF" BorderThickness="0,0,0,1">
+            <DockPanel>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Name="TxtAppName" Text="Application Logs" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <Border CornerRadius="10" Padding="6,2" Background="#20FFFFFF" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse Name="StatusDot" Width="6" Height="6" Fill="#4ADE80" Margin="0,0,4,0"/>
+                            <TextBlock Name="TxtAppStatus" Text="Running" FontSize="11" FontWeight="Medium" Foreground="#4ADE80"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <ui:Button Name="BtnCopy"
+                               Content="Copy All"
+                               Icon="{ui:SymbolIcon Copy20}"
+                               Appearance="Secondary"
+                               Margin="0,0,6,0"
+                               Padding="10,5"
+                               Click="BtnCopy_Click"/>
+                    <ui:Button Name="BtnClear"
+                               Content="Clear Logs"
+                               Icon="{ui:SymbolIcon Delete20}"
+                               Appearance="Secondary"
+                               Padding="10,5"
+                               Click="BtnClear_Click"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Console / RichTextBox -->
+        <Border Grid.Row="2" Margin="12,8,12,8" Background="#18181B" BorderBrush="#30FFFFFF" BorderThickness="1" CornerRadius="8" Padding="6">
+            <RichTextBox Name="RtbLogs"
+                         Background="Transparent"
+                         Foreground="#E4E4E7" 
+                         BorderThickness="0"
+                         FontFamily="Cascadia Code, Consolas, monospace"
+                         FontSize="12"
+                         IsReadOnly="True"
+                         IsDocumentEnabled="True"
+                         VerticalScrollBarVisibility="Auto">
+                <FlowDocument PagePadding="0"/>
+            </RichTextBox>
+        </Border>
+
+        <!-- Footer StatusBar -->
+        <Border Grid.Row="3" Background="#10FFFFFF" Padding="12,6" BorderBrush="#15FFFFFF" BorderThickness="0,1,0,0">
+            <DockPanel>
+                <TextBlock Name="TxtStatus" Text="Live log stream active" FontSize="11" Foreground="#94A3B8"/>
+                <TextBlock Name="TxtLineCount" Text="0 lines" FontSize="11" Foreground="#94A3B8" DockPanel.Dock="Right" HorizontalAlignment="Right"/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</ui:FluentWindow>
