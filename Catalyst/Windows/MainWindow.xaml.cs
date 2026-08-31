@@ -94,12 +94,12 @@ public partial class MainWindow : FluentWindow
             }
             else
             {
-                _notifyIcon.Icon = System.Drawing.SystemIcons.Application;
+                _notifyIcon.Icon = GetAppIconFallback();
             }
         }
         catch
         {
-            _notifyIcon.Icon = System.Drawing.SystemIcons.Application;
+            _notifyIcon.Icon = GetAppIconFallback();
         }
 
         _notifyIcon.Text = "Catalyst - Dev App Launcher";
@@ -117,6 +117,34 @@ public partial class MainWindow : FluentWindow
 
         _notifyIcon.ContextMenuStrip = contextMenu;
         _notifyIcon.DoubleClick += (s, e) => Dispatcher.Invoke(RestoreWindow);
+    }
+
+    private static System.Drawing.Icon GetAppIconFallback()
+    {
+        try
+        {
+            string localIco = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "favicon.ico");
+            if (System.IO.File.Exists(localIco))
+            {
+                return new System.Drawing.Icon(localIco);
+            }
+
+            var exePath = Environment.ProcessPath ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+            if (!string.IsNullOrEmpty(exePath) && System.IO.File.Exists(exePath))
+            {
+                var extracted = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
+                if (extracted != null)
+                {
+                    return extracted;
+                }
+            }
+        }
+        catch
+        {
+            // Ignore and fall back
+        }
+
+        return System.Drawing.SystemIcons.Application;
     }
 
     private void SetupHotkey()

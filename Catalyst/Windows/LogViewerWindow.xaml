@@ -7,6 +7,7 @@
         xmlns:local="clr-namespace:Catalyst.Windows"
         mc:Ignorable="d"
         Title="Log Viewer" Height="500" Width="850"
+        Icon="pack://application:,,,/favicon.ico"
         WindowBackdropType="Mica"
         ExtendsContentIntoTitleBar="True"
         WindowStartupLocation="CenterOwner">
@@ -20,7 +21,11 @@
         </Grid.RowDefinitions>
 
         <!-- TitleBar -->
-        <ui:TitleBar Grid.Row="0" Title="Catalyst - Log Viewer"/>
+        <ui:TitleBar Grid.Row="0" Title="Catalyst - Log Viewer">
+            <ui:TitleBar.Icon>
+                <ui:ImageIcon Source="pack://application:,,,/favicon.ico"/>
+            </ui:TitleBar.Icon>
+        </ui:TitleBar>
 
         <!-- Header / Toolbar -->
         <Border Grid.Row="1" Background="#15FFFFFF" Padding="12,8" BorderBrush="#20FFFFFF" BorderThickness="0,0,0,1">

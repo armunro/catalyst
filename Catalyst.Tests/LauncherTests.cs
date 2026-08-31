@@ -999,6 +999,12 @@ apps:
         Directory.CreateDirectory(tempDir);
         string tempConfigFile = Path.Combine(tempDir, "apps.yaml");
 
+        File.WriteAllText(tempConfigFile, @"hotkey: Alt+Space
+apps:
+  - name: InitialApp
+    path: C:\Initial.exe
+");
+
         try
         {
             var mockConfigRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
@@ -1016,6 +1022,10 @@ apps:
                 iconService,
                 hotkeyService,
                 windowService);
+
+            // Verify constructor loads apps from configuration automatically
+            Assert.Single(vm.Apps);
+            Assert.Equal("InitialApp", vm.Apps[0].Name);
 
             var app1 = new AppInfo { Name = "AppA", ExecutablePath = @"C:\A.exe" };
             var app2 = new AppInfo { Name = "AppB", ExecutablePath = @"C:\B.exe" };

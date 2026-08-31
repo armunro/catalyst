@@ -8,6 +8,7 @@
         xmlns:root="clr-namespace:Catalyst"
         mc:Ignorable="d"
         Title="Catalyst" Height="620" Width="380"
+        Icon="pack://application:,,,/favicon.ico"
         MinWidth="340" MinHeight="440"
         WindowBackdropType="Mica"
         ExtendsContentIntoTitleBar="True"

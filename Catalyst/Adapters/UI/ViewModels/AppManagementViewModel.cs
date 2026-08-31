@@ -35,6 +35,8 @@ public class AppManagementViewModel : INotifyPropertyChanged
         Apps = new ObservableCollection<AppInfo>();
         _configuredHotkey = _configService.ConfiguredHotkey;
         _configFilePath = _configService.ActiveConfigPath;
+
+        Initialize();
     }
 
     public ObservableCollection<AppInfo> Apps { get; }

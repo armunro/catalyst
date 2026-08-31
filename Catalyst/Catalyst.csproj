@@ -21,10 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Remove="favicon.ico" />
-    <Content Include="favicon.ico">
+    <Resource Include="favicon.ico" />
+    <None Update="favicon.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    </None>
   </ItemGroup>
 
 </Project>

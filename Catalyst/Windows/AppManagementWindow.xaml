@@ -8,6 +8,7 @@
         xmlns:root="clr-namespace:Catalyst"
         mc:Ignorable="d"
         Title="Catalyst - App Management" Height="780" Width="920"
+        Icon="pack://application:,,,/favicon.ico"
         MinWidth="800" MinHeight="600"
         WindowBackdropType="Mica"
         ExtendsContentIntoTitleBar="True"
@@ -59,7 +60,11 @@
             <RowDefinition Height="*"/>    <!-- Content -->
         </Grid.RowDefinitions>
 
-        <ui:TitleBar Grid.Row="0" Title="Catalyst - App Management" ShowMaximize="True"/>
+        <ui:TitleBar Grid.Row="0" Title="Catalyst - App Management" ShowMaximize="True">
+            <ui:TitleBar.Icon>
+                <ui:ImageIcon Source="pack://application:,,,/favicon.ico"/>
+            </ui:TitleBar.Icon>
+        </ui:TitleBar>
 
         <Grid Grid.Row="1" Margin="14,0,14,14">
             <Grid.ColumnDefinitions>
@@ -226,284 +231,365 @@
 
             <!-- Right Panel: App Configuration -->
             <Border Grid.Column="1" Background="#14FFFFFF" BorderBrush="#20FFFFFF" BorderThickness="1" CornerRadius="8" Padding="18">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Name="ConfigPanel">
-                        <!-- Header -->
-                        <Grid Margin="0,0,0,16">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Application Settings" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" VerticalAlignment="Center"/>
-                            <Border Grid.Column="1" Background="#2038bdf8" CornerRadius="4" Padding="8,3">
-                                <TextBlock Name="LblTypeBadge" Text="Application" FontSize="11" FontWeight="Medium" Foreground="#38BDF8"/>
-                            </Border>
-                        </Grid>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
 
-                        <!-- Section 1: Launch Configuration -->
-                        <Border Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,14">
-                            <StackPanel>
-                                <TextBlock Text="LAUNCH CONFIGURATION" FontSize="11" FontWeight="Bold" Foreground="#60A5FA" Margin="0,0,0,10"/>
-
-                                <TextBlock Text="Application Name" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
-                                <ui:TextBox Name="TxtAppName" PlaceholderText="e.g. FlightPlan, VS Code, Chrome"
-                                            TextChanged="Config_TextChanged" Margin="0,0,0,10"/>
-
-                                <TextBlock Text="Launch Target (.exe / .csproj / .sln / .bat / .ps1 / URL / shortcut)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <ui:TextBox Name="TxtProjectPath" PlaceholderText="e.g. C:\Program Files\App\app.exe or FlightPlan\FlightPlan.csproj"
-                                                TextChanged="Config_TextChanged" Margin="0,0,6,0"/>
-                                    <ui:Button Name="BtnBrowseTarget" Grid.Column="1" Content="Browse..."
-                                               Icon="{ui:SymbolIcon FolderOpen20}"
-                                               Appearance="Secondary"
-                                               Click="BtnBrowseTarget_Click"/>
-                                </Grid>
-
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0" Margin="0,0,6,0">
-                                        <TextBlock Text="Arguments (Optional)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
-                                        <ui:TextBox Name="TxtArguments" PlaceholderText="--profile dev, -v"
-                                                    TextChanged="Config_TextChanged"/>
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Margin="6,0,0,0">
-                                        <TextBlock Text="Working Directory (Optional)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <ui:TextBox Name="TxtWorkingDirectory" PlaceholderText="C:\WorkingDir"
-                                                        TextChanged="Config_TextChanged" Margin="0,0,4,0"/>
-                                            <ui:Button Name="BtnBrowseWorkingDir" Grid.Column="1" Content="..."
-                                                       Appearance="Secondary" Padding="8,4"
-                                                       Click="BtnBrowseWorkingDir_Click"/>
-                                        </Grid>
-                                    </StackPanel>
-                                </Grid>
-
-                                <CheckBox Name="ChkRunAsAdmin" Content="Run as Administrator"
-                                          Foreground="#CBD5E1" FontSize="12"
-                                          Checked="Config_CheckChanged" Unchecked="Config_CheckChanged"/>
-
-                                <CheckBox Name="ChkIsHidden" Content="Hide from Main Window (Visible in App Manager only)"
-                                          Foreground="#CBD5E1" FontSize="12" Margin="0,6,0,0"
-                                          Checked="Config_CheckChanged" Unchecked="Config_CheckChanged"/>
-                            </StackPanel>
+                    <!-- Header -->
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Application Settings" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" VerticalAlignment="Center"/>
+                        <Border Grid.Column="1" Background="#2038bdf8" CornerRadius="4" Padding="8,3">
+                            <TextBlock Name="LblTypeBadge" Text="Application" FontSize="11" FontWeight="Medium" Foreground="#38BDF8"/>
                         </Border>
+                    </Grid>
 
-                        <!-- Section 2: Icon & Branding Configuration -->
-                        <Border Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,14">
-                            <StackPanel>
-                                <TextBlock Text="ICON &amp; BRANDING CONFIGURATION" FontSize="11" FontWeight="Bold" Foreground="#60A5FA" Margin="0,0,0,10"/>
-
-                                <!-- Colors & Background Configuration -->
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-
-                                    <!-- Background Style -->
-                                    <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                        <TextBlock Text="Background Style" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
-                                        <ComboBox Name="CmbBackgroundType" SelectionChanged="Config_SelectionChanged" HorizontalAlignment="Stretch">
-                                            <ComboBoxItem Content="Solid Color" Tag="Solid"/>
-                                            <ComboBoxItem Content="2-Part Gradient" Tag="Gradient"/>
-                                        </ComboBox>
-                                    </StackPanel>
-
-                                    <!-- Primary Color / Start Color -->
-                                    <StackPanel Grid.Column="1" Margin="4,0,4,0">
-                                        <TextBlock Name="LblColor" Text="Color (Hex)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <ui:TextBox Name="TxtColor" PlaceholderText="#1E88E4"
-                                                        TextChanged="Config_TextChanged" Margin="0,0,4,0"/>
-                                            <Border Name="ColorPreviewBorder" Grid.Column="1" Width="24" Height="24" CornerRadius="4" Background="#1E88E4" BorderBrush="#40FFFFFF" BorderThickness="1" VerticalAlignment="Center"/>
-                                        </Grid>
-                                    </StackPanel>
-
-                                    <!-- Secondary Color / Gradient End Color -->
-                                    <StackPanel Grid.Column="2" Margin="4,0,4,0">
-                                        <TextBlock Name="LblSecondaryColor" Text="Gradient End (Hex)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <ui:TextBox Name="TxtSecondaryColor" PlaceholderText="#DD2476"
-                                                        TextChanged="Config_TextChanged" Margin="0,0,4,0"/>
-                                            <Border Name="SecondaryColorPreviewBorder" Grid.Column="1" Width="24" Height="24" CornerRadius="4" Background="#DD2476" BorderBrush="#40FFFFFF" BorderThickness="1" VerticalAlignment="Center"/>
-                                        </Grid>
-                                    </StackPanel>
-
-                                    <!-- Gradient Direction -->
-                                    <StackPanel Grid.Column="3" Margin="4,0,0,0">
-                                        <TextBlock Name="LblGradientDirection" Text="Gradient Direction" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
-                                        <ComboBox Name="CmbGradientDirection" SelectionChanged="Config_SelectionChanged" HorizontalAlignment="Stretch">
-                                            <ComboBoxItem Content="Diagonal (TL ↘ BR)" Tag="Diagonal"/>
-                                            <ComboBoxItem Content="Vertical (Top ↓ Bottom)" Tag="Vertical"/>
-                                            <ComboBoxItem Content="Horizontal (Left → Right)" Tag="Horizontal"/>
-                                            <ComboBoxItem Content="Diagonal Up (BL ↗ TR)" Tag="DiagonalUp"/>
-                                        </ComboBox>
-                                    </StackPanel>
-                                </Grid>
-
-                                <!-- Glyph Tint & Badge Label -->
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-
-                                    <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                        <TextBlock Text="Glyph Tint (Hex - Leave empty for SVG colors)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <ui:TextBox Name="TxtGlyphColor" PlaceholderText="#FFFFFF"
-                                                        TextChanged="Config_TextChanged" Margin="0,0,4,0"/>
-                                            <Border Name="GlyphColorPreviewBorder" Grid.Column="1" Width="24" Height="24" CornerRadius="4" Background="#FFFFFF" BorderBrush="#40FFFFFF" BorderThickness="1" VerticalAlignment="Center"/>
-                                        </Grid>
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Column="1" Margin="4,0,0,0">
-                                        <TextBlock Text="Label / Badge Text" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
-                                        <ui:TextBox Name="TxtLabel" PlaceholderText="FP"
-                                                    TextChanged="Config_TextChanged"/>
-                                    </StackPanel>
-                                </Grid>
-
-                                <!-- Custom Glyph SVG -->
-                                <TextBlock Text="Custom Glyph SVG (File path or SVG XML / path data)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <ui:TextBox Name="TxtCustomGlyphSvg" PlaceholderText="e.g. icons\custom-glyph.svg or SVG XML"
-                                                TextChanged="Config_TextChanged" Margin="0,0,6,0"/>
-                                    <ui:Button Name="BtnBrowseGlyphSvg" Grid.Column="1" Content="Browse SVG..."
-                                               Icon="{ui:SymbolIcon Image20}"
-                                               Appearance="Secondary"
-                                               Click="BtnBrowseGlyphSvg_Click"/>
-                                </Grid>
-
-                                <!-- Complete SVG Override -->
-                                <TextBlock Text="Complete SVG Override (Replaces entire icon tile with full SVG)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <ui:TextBox Name="TxtSvgOverride" PlaceholderText="e.g. icons\full-icon.svg or complete SVG XML"
-                                                TextChanged="Config_TextChanged" Margin="0,0,6,0"/>
-                                    <ui:Button Name="BtnBrowseSvgOverride" Grid.Column="1" Content="Browse SVG..."
-                                               Icon="{ui:SymbolIcon Image20}"
-                                               Appearance="Secondary"
-                                               Click="BtnBrowseSvgOverride_Click"/>
-                                </Grid>
-
-                                <!-- Bootstrap Icon & Favicon -->
-                                <Grid Margin="0,0,0,6">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0" Margin="0,0,6,0">
-                                        <TextBlock Text="Bootstrap Icon Name (Optional)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
-                                        <ui:TextBox Name="TxtBootstrapIcon" PlaceholderText="e.g. send, copy, grid-3x2-gap"
-                                                    TextChanged="Config_TextChanged"/>
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Margin="6,0,0,0">
-                                        <TextBlock Text="Project Favicon Path (Optional)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <ui:TextBox Name="TxtFaviconPath" PlaceholderText="FlightPlan\wwwroot\favicon.ico"
-                                                        TextChanged="Config_TextChanged" Margin="0,0,4,0"/>
-                                            <ui:Button Name="BtnBrowseFavicon" Grid.Column="1" Content="..."
-                                                       Appearance="Secondary" Padding="8,4"
-                                                       Click="BtnBrowseFavicon_Click"/>
-                                        </Grid>
-                                    </StackPanel>
-                                </Grid>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Section 3: Live Previews Card -->
-                        <Border Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="12">
-                            <StackPanel>
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="LIVE ICON PREVIEWS" FontSize="11" FontWeight="Bold" Foreground="#60A5FA" VerticalAlignment="Center"/>
-                                    <ui:Button Name="BtnRegenerateCurrent" Grid.Column="1" Content="Generate This Icon"
-                                               Icon="{ui:SymbolIcon ArrowClockwise16}"
-                                               Appearance="Secondary" Padding="8,3" FontSize="11"
-                                               Click="BtnRegenerateCurrent_Click"/>
-                                </Grid>
-
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                                    <StackPanel Margin="0,0,24,0" HorizontalAlignment="Center">
-                                        <TextBlock Text="512x512" Foreground="#94A3B8" FontSize="11" Margin="0,0,0,6" HorizontalAlignment="Center"/>
-                                        <Border Width="110" Height="110" Background="#20FFFFFF" CornerRadius="8" ClipToBounds="True">
-                                            <Image Source="{Binding SelectedItem.IconSource, ElementName=LstApps}" Stretch="Uniform"
-                                                   RenderOptions.BitmapScalingMode="HighQuality"
-                                                   RenderOptions.EdgeMode="Unspecified"/>
-                                        </Border>
-                                    </StackPanel>
-
-                                    <StackPanel VerticalAlignment="Bottom" Margin="0,0,20,0" HorizontalAlignment="Center">
-                                        <TextBlock Text="48x48" Foreground="#94A3B8" FontSize="11" Margin="0,0,0,6" HorizontalAlignment="Center"/>
-                                        <Border Width="48" Height="48" Background="#20FFFFFF" CornerRadius="6" ClipToBounds="True">
-                                            <Image Source="{Binding SelectedItem.IconSource48, ElementName=LstApps}" Stretch="Uniform"
-                                                   RenderOptions.BitmapScalingMode="HighQuality"
-                                                   RenderOptions.EdgeMode="Unspecified"/>
-                                        </Border>
-                                    </StackPanel>
-
-                                    <StackPanel VerticalAlignment="Bottom" Margin="0,0,20,0" HorizontalAlignment="Center">
-                                        <TextBlock Text="32x32" Foreground="#94A3B8" FontSize="11" Margin="0,0,0,6" HorizontalAlignment="Center"/>
-                                        <Border Width="32" Height="32" Background="#20FFFFFF" CornerRadius="4" ClipToBounds="True">
-                                            <Image Source="{Binding SelectedItem.IconSource32, ElementName=LstApps}" Stretch="Uniform"
-                                                   RenderOptions.BitmapScalingMode="HighQuality"
-                                                   RenderOptions.EdgeMode="Unspecified"/>
-                                        </Border>
-                                    </StackPanel>
-
-                                    <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Center">
-                                        <TextBlock Text="16x16" Foreground="#94A3B8" FontSize="11" Margin="0,0,0,6" HorizontalAlignment="Center"/>
-                                        <Border Width="16" Height="16" Background="#20FFFFFF" CornerRadius="3" ClipToBounds="True">
-                                            <Image Source="{Binding SelectedItem.IconSource16, ElementName=LstApps}" Stretch="Uniform"
-                                                   RenderOptions.BitmapScalingMode="HighQuality"
-                                                   RenderOptions.EdgeMode="Unspecified"/>
-                                        </Border>
-                                    </StackPanel>
+                    <!-- Category Tabs -->
+                    <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0">
+                        <!-- Tab 1: Launch Configuration -->
+                        <TabItem>
+                            <TabItem.Header>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="4,2">
+                                    <ui:SymbolIcon Symbol="Play20" Margin="0,0,6,0"/>
+                                    <TextBlock Text="Launch" FontWeight="SemiBold" FontSize="12"/>
                                 </StackPanel>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </ScrollViewer>
+                            </TabItem.Header>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,10,0,0">
+                                <StackPanel Margin="0,0,8,0">
+                                    <!-- Target & Execution Card -->
+                                    <Border Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,14">
+                                        <StackPanel>
+                                            <TextBlock Text="TARGET &amp; EXECUTION" FontSize="11" FontWeight="Bold" Foreground="#60A5FA" Margin="0,0,0,10"/>
+
+                                            <TextBlock Text="Application Name" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
+                                            <ui:TextBox Name="TxtAppName" PlaceholderText="e.g. FlightPlan, VS Code, Chrome"
+                                                        TextChanged="Config_TextChanged" Margin="0,0,0,10"/>
+
+                                            <TextBlock Text="Launch Target (.exe / .csproj / .sln / .bat / .ps1 / URL / shortcut)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
+                                            <Grid Margin="0,0,0,10">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <ui:TextBox Name="TxtProjectPath" PlaceholderText="e.g. C:\Program Files\App\app.exe or FlightPlan\FlightPlan.csproj"
+                                                            TextChanged="Config_TextChanged" Margin="0,0,6,0"/>
+                                                <ui:Button Name="BtnBrowseTarget" Grid.Column="1" Content="Browse..."
+                                                           Icon="{ui:SymbolIcon FolderOpen20}"
+                                                           Appearance="Secondary"
+                                                           Click="BtnBrowseTarget_Click"/>
+                                            </Grid>
+
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                                    <TextBlock Text="Arguments (Optional)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
+                                                    <ui:TextBox Name="TxtArguments" PlaceholderText="--profile dev, -v"
+                                                                TextChanged="Config_TextChanged"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                                                    <TextBlock Text="Working Directory (Optional)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <ui:TextBox Name="TxtWorkingDirectory" PlaceholderText="C:\WorkingDir"
+                                                                    TextChanged="Config_TextChanged" Margin="0,0,4,0"/>
+                                                        <ui:Button Name="BtnBrowseWorkingDir" Grid.Column="1" Content="..."
+                                                                   Appearance="Secondary" Padding="8,4"
+                                                                   Click="BtnBrowseWorkingDir_Click"/>
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Launch Behavior Card -->
+                                    <Border Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="12">
+                                        <StackPanel>
+                                            <TextBlock Text="LAUNCH BEHAVIOR &amp; VISIBILITY" FontSize="11" FontWeight="Bold" Foreground="#60A5FA" Margin="0,0,0,10"/>
+
+                                            <CheckBox Name="ChkRunAsAdmin" Content="Run as Administrator"
+                                                      Foreground="#CBD5E1" FontSize="12" Margin="0,0,0,8"
+                                                      Checked="Config_CheckChanged" Unchecked="Config_CheckChanged"/>
+
+                                            <CheckBox Name="ChkIsHidden" Content="Hide from Main Window (Visible in App Manager only)"
+                                                      Foreground="#CBD5E1" FontSize="12"
+                                                      Checked="Config_CheckChanged" Unchecked="Config_CheckChanged"/>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <!-- Tab 2: Appearance & Styling -->
+                        <TabItem>
+                            <TabItem.Header>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="4,2">
+                                    <ui:SymbolIcon Symbol="Color20" Margin="0,0,6,0"/>
+                                    <TextBlock Text="Appearance" FontWeight="SemiBold" FontSize="12"/>
+                                </StackPanel>
+                            </TabItem.Header>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,10,0,0">
+                                <StackPanel Margin="0,0,8,0">
+                                    <!-- Background & Palette Card -->
+                                    <Border Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,14">
+                                        <StackPanel>
+                                            <TextBlock Text="BACKGROUND &amp; COLORS" FontSize="11" FontWeight="Bold" Foreground="#60A5FA" Margin="0,0,0,10"/>
+
+                                            <Grid Margin="0,0,0,10">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <!-- Background Style -->
+                                                <StackPanel Grid.Column="0" Margin="0,0,4,0">
+                                                    <TextBlock Text="Background Style" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
+                                                    <ComboBox Name="CmbBackgroundType" SelectionChanged="Config_SelectionChanged" HorizontalAlignment="Stretch">
+                                                        <ComboBoxItem Content="Solid Color" Tag="Solid"/>
+                                                        <ComboBoxItem Content="2-Part Gradient" Tag="Gradient"/>
+                                                    </ComboBox>
+                                                </StackPanel>
+
+                                                <!-- Primary Color / Start Color -->
+                                                <StackPanel Grid.Column="1" Margin="4,0,4,0">
+                                                    <TextBlock Name="LblColor" Text="Color (Hex)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <ui:TextBox Name="TxtColor" PlaceholderText="#1E88E4"
+                                                                    TextChanged="Config_TextChanged" Margin="0,0,4,0"/>
+                                                        <Border Name="ColorPreviewBorder" Grid.Column="1" Width="24" Height="24" CornerRadius="4" Background="#1E88E4" BorderBrush="#40FFFFFF" BorderThickness="1" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                </StackPanel>
+
+                                                <!-- Secondary Color / Gradient End Color -->
+                                                <StackPanel Grid.Column="2" Margin="4,0,4,0">
+                                                    <TextBlock Name="LblSecondaryColor" Text="Gradient End (Hex)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <ui:TextBox Name="TxtSecondaryColor" PlaceholderText="#DD2476"
+                                                                    TextChanged="Config_TextChanged" Margin="0,0,4,0"/>
+                                                        <Border Name="SecondaryColorPreviewBorder" Grid.Column="1" Width="24" Height="24" CornerRadius="4" Background="#DD2476" BorderBrush="#40FFFFFF" BorderThickness="1" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                </StackPanel>
+
+                                                <!-- Gradient Direction -->
+                                                <StackPanel Grid.Column="3" Margin="4,0,0,0">
+                                                    <TextBlock Name="LblGradientDirection" Text="Gradient Direction" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
+                                                    <ComboBox Name="CmbGradientDirection" SelectionChanged="Config_SelectionChanged" HorizontalAlignment="Stretch">
+                                                        <ComboBoxItem Content="Diagonal (TL ↘ BR)" Tag="Diagonal"/>
+                                                        <ComboBoxItem Content="Vertical (Top ↓ Bottom)" Tag="Vertical"/>
+                                                        <ComboBoxItem Content="Horizontal (Left → Right)" Tag="Horizontal"/>
+                                                        <ComboBoxItem Content="Diagonal Up (BL ↗ TR)" Tag="DiagonalUp"/>
+                                                    </ComboBox>
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Badge Label & Glyph Styling Card -->
+                                    <Border Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="12">
+                                        <StackPanel>
+                                            <TextBlock Text="BADGE LABEL &amp; GLYPH STYLING" FontSize="11" FontWeight="Bold" Foreground="#60A5FA" Margin="0,0,0,10"/>
+
+                                            <Grid Margin="0,0,0,10">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <StackPanel Grid.Column="0" Margin="0,0,4,0">
+                                                    <TextBlock Text="Label / Badge Text" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
+                                                    <ui:TextBox Name="TxtLabel" PlaceholderText="FP"
+                                                                TextChanged="Config_TextChanged"/>
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="1" Margin="4,0,4,0">
+                                                    <TextBlock Text="Glyph Tint (Hex)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <ui:TextBox Name="TxtGlyphColor" PlaceholderText="#FFFFFF"
+                                                                    TextChanged="Config_TextChanged" Margin="0,0,4,0"/>
+                                                        <Border Name="GlyphColorPreviewBorder" Grid.Column="1" Width="24" Height="24" CornerRadius="4" Background="#FFFFFF" BorderBrush="#40FFFFFF" BorderThickness="1" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="2" Margin="4,0,0,0">
+                                                    <TextBlock Text="Bootstrap Icon Name" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
+                                                    <ui:TextBox Name="TxtBootstrapIcon" PlaceholderText="e.g. send, copy, play"
+                                                                TextChanged="Config_TextChanged"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <!-- Tab 3: Custom Assets & Overrides -->
+                        <TabItem>
+                            <TabItem.Header>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="4,2">
+                                    <ui:SymbolIcon Symbol="Image20" Margin="0,0,6,0"/>
+                                    <TextBlock Text="Custom Assets" FontWeight="SemiBold" FontSize="12"/>
+                                </StackPanel>
+                            </TabItem.Header>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,10,0,0">
+                                <StackPanel Margin="0,0,8,0">
+                                    <!-- Vector Glyphs Card -->
+                                    <Border Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,14">
+                                        <StackPanel>
+                                            <TextBlock Text="CUSTOM SVG GLYPH &amp; OVERRIDE" FontSize="11" FontWeight="Bold" Foreground="#60A5FA" Margin="0,0,0,10"/>
+
+                                            <!-- Custom Glyph SVG -->
+                                            <TextBlock Text="Custom Glyph SVG (File path or SVG XML / path data)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
+                                            <Grid Margin="0,0,0,10">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <ui:TextBox Name="TxtCustomGlyphSvg" PlaceholderText="e.g. icons\custom-glyph.svg or SVG XML"
+                                                            TextChanged="Config_TextChanged" Margin="0,0,6,0"/>
+                                                <ui:Button Name="BtnBrowseGlyphSvg" Grid.Column="1" Content="Browse SVG..."
+                                                           Icon="{ui:SymbolIcon Image20}"
+                                                           Appearance="Secondary"
+                                                           Click="BtnBrowseGlyphSvg_Click"/>
+                                            </Grid>
+
+                                            <!-- Complete SVG Override -->
+                                            <TextBlock Text="Complete SVG Override (Replaces entire icon tile with full SVG)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <ui:TextBox Name="TxtSvgOverride" PlaceholderText="e.g. icons\full-icon.svg or complete SVG XML"
+                                                            TextChanged="Config_TextChanged" Margin="0,0,6,0"/>
+                                                <ui:Button Name="BtnBrowseSvgOverride" Grid.Column="1" Content="Browse SVG..."
+                                                           Icon="{ui:SymbolIcon Image20}"
+                                                           Appearance="Secondary"
+                                                           Click="BtnBrowseSvgOverride_Click"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Project Favicon Card -->
+                                    <Border Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="12">
+                                        <StackPanel>
+                                            <TextBlock Text="PROJECT FAVICON" FontSize="11" FontWeight="Bold" Foreground="#60A5FA" Margin="0,0,0,10"/>
+
+                                            <TextBlock Text="Project Favicon Path (Optional - for web / project branding)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <ui:TextBox Name="TxtFaviconPath" PlaceholderText="FlightPlan\wwwroot\favicon.ico"
+                                                            TextChanged="Config_TextChanged" Margin="0,0,4,0"/>
+                                                <ui:Button Name="BtnBrowseFavicon" Grid.Column="1" Content="..."
+                                                           Appearance="Secondary" Padding="8,4"
+                                                           Click="BtnBrowseFavicon_Click"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <!-- Tab 4: Live Previews -->
+                        <TabItem>
+                            <TabItem.Header>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="4,2">
+                                    <ui:SymbolIcon Symbol="Eye20" Margin="0,0,6,0"/>
+                                    <TextBlock Text="Live Previews" FontWeight="SemiBold" FontSize="12"/>
+                                </StackPanel>
+                            </TabItem.Header>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,10,0,0">
+                                <StackPanel Margin="0,0,8,0">
+                                    <Border Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="14">
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,14">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock Text="ICON PREVIEWS" FontSize="11" FontWeight="Bold" Foreground="#60A5FA"/>
+                                                    <TextBlock Text="Real-time multi-resolution icon generation previews" FontSize="11" Foreground="#94A3B8" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                                <ui:Button Name="BtnRegenerateCurrent" Grid.Column="1" Content="Generate This Icon"
+                                                           Icon="{ui:SymbolIcon ArrowClockwise16}"
+                                                           Appearance="Secondary" Padding="10,4" FontSize="12"
+                                                           Click="BtnRegenerateCurrent_Click"/>
+                                            </Grid>
+
+                                            <Border Background="#08FFFFFF" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="6" Padding="14">
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                                    <StackPanel Margin="0,0,24,0" HorizontalAlignment="Center">
+                                                        <TextBlock Text="512x512" Foreground="#94A3B8" FontSize="11" Margin="0,0,0,6" HorizontalAlignment="Center"/>
+                                                        <Border Width="110" Height="110" Background="#20FFFFFF" CornerRadius="8" ClipToBounds="True">
+                                                            <Image Source="{Binding SelectedItem.IconSource, ElementName=LstApps}" Stretch="Uniform"
+                                                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                                                   RenderOptions.EdgeMode="Unspecified"/>
+                                                        </Border>
+                                                    </StackPanel>
+
+                                                    <StackPanel VerticalAlignment="Bottom" Margin="0,0,20,0" HorizontalAlignment="Center">
+                                                        <TextBlock Text="48x48" Foreground="#94A3B8" FontSize="11" Margin="0,0,0,6" HorizontalAlignment="Center"/>
+                                                        <Border Width="48" Height="48" Background="#20FFFFFF" CornerRadius="6" ClipToBounds="True">
+                                                            <Image Source="{Binding SelectedItem.IconSource48, ElementName=LstApps}" Stretch="Uniform"
+                                                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                                                   RenderOptions.EdgeMode="Unspecified"/>
+                                                        </Border>
+                                                    </StackPanel>
+
+                                                    <StackPanel VerticalAlignment="Bottom" Margin="0,0,20,0" HorizontalAlignment="Center">
+                                                        <TextBlock Text="32x32" Foreground="#94A3B8" FontSize="11" Margin="0,0,0,6" HorizontalAlignment="Center"/>
+                                                        <Border Width="32" Height="32" Background="#20FFFFFF" CornerRadius="4" ClipToBounds="True">
+                                                            <Image Source="{Binding SelectedItem.IconSource32, ElementName=LstApps}" Stretch="Uniform"
+                                                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                                                   RenderOptions.EdgeMode="Unspecified"/>
+                                                        </Border>
+                                                    </StackPanel>
+
+                                                    <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Center">
+                                                        <TextBlock Text="16x16" Foreground="#94A3B8" FontSize="11" Margin="0,0,0,6" HorizontalAlignment="Center"/>
+                                                        <Border Width="16" Height="16" Background="#20FFFFFF" CornerRadius="3" ClipToBounds="True">
+                                                            <Image Source="{Binding SelectedItem.IconSource16, ElementName=LstApps}" Stretch="Uniform"
+                                                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                                                   RenderOptions.EdgeMode="Unspecified"/>
+                                                        </Border>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+                    </TabControl>
+                </Grid>
             </Border>
         </Grid>
     </Grid>
