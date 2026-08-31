@@ -11,6 +11,7 @@ public class AppConfigFile
 public class AppConfigEntry
 {
     public string Name { get; set; } = string.Empty;
+    public bool Hidden { get; set; } = false;
     public LaunchConfig Launch { get; set; } = new();
     public IconConfig Icon { get; set; } = new();
 }

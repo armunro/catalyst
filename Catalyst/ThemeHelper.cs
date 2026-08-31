@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 
-namespace Catalyst.WPF;
+namespace Catalyst;
 
 public static class ThemeHelper
 {

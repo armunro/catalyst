@@ -1,202 +1,83 @@
-using System;
-using System.IO;
-using System.Linq;
-using System.Text.Json;
-using YamlDotNet.Serialization;
-using YamlDotNet.Serialization.NamingConventions;
+﻿using System;
+using System.Collections.Generic;
+using Catalyst.Adapters.Persistence;
+using Catalyst.Core.Domain.Models;
+using Catalyst.Core.Ports.Inbound;
+using Catalyst.Core.Ports.Outbound;
+using Catalyst.Core.Services;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Catalyst.Services;
 
+/// <summary>
+/// Backward-compatible facade delegating to hexagonal ports and adapters.
+/// </summary>
 public static class ConfigService
 {
-    public const string DefaultFileName = "apps.yaml";
+    private static readonly ISettingsStorage DefaultSettingsStorage = new JsonSettingsStorage();
+    private static readonly IPathResolver DefaultPathResolver = new PathResolver(DefaultSettingsStorage);
+    private static readonly IConfigRepository DefaultConfigRepository = new YamlConfigRepository();
+    private static readonly IAppConfigurationService DefaultAppConfigService = new AppConfigurationService(DefaultConfigRepository, DefaultSettingsStorage, DefaultPathResolver);
 
-    public static string SettingsFilePath { get; set; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "Catalyst",
-        "settings.json");
+    private static IPathResolver GetPathResolver() =>
+        App.Services?.GetService<IPathResolver>() ?? DefaultPathResolver;
 
-    public static string? CustomConfigPath { get; set; }
+    private static ISettingsStorage GetSettingsStorage() =>
+        App.Services?.GetService<ISettingsStorage>() ?? DefaultSettingsStorage;
 
-    public static string? ParseCommandLineConfigPath(string[]? args = null)
+    private static IConfigRepository GetConfigRepository() =>
+        App.Services?.GetService<IConfigRepository>() ?? DefaultConfigRepository;
+
+    private static IAppConfigurationService GetAppConfigService() =>
+        App.Services?.GetService<IAppConfigurationService>() ?? DefaultAppConfigService;
+
+    public static string SettingsFilePath
     {
-        args ??= Environment.GetCommandLineArgs();
-        if (args == null || args.Length <= 1) return null;
-
-        for (int i = 1; i < args.Length; i++)
-        {
-            string arg = args[i];
-            if (string.IsNullOrWhiteSpace(arg)) continue;
-
-            if (arg.Equals("--config", StringComparison.OrdinalIgnoreCase) ||
-                arg.Equals("-c", StringComparison.OrdinalIgnoreCase) ||
-                arg.Equals("/config", StringComparison.OrdinalIgnoreCase))
-            {
-                if (i + 1 < args.Length && !string.IsNullOrWhiteSpace(args[i + 1]))
-                {
-                    return args[i + 1].Trim('"', '\'');
-                }
-            }
-            else if (arg.StartsWith("--config=", StringComparison.OrdinalIgnoreCase))
-            {
-                return arg.Substring("--config=".Length).Trim('"', '\'');
-            }
-            else if (arg.StartsWith("/config:", StringComparison.OrdinalIgnoreCase))
-            {
-                return arg.Substring("/config:".Length).Trim('"', '\'');
-            }
-            else if (arg.StartsWith("-c:", StringComparison.OrdinalIgnoreCase))
-            {
-                return arg.Substring("-c:".Length).Trim('"', '\'');
-            }
-            else if (arg.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase) ||
-                     arg.EndsWith(".yml", StringComparison.OrdinalIgnoreCase))
-            {
-                return arg.Trim('"', '\'');
-            }
-        }
-
-        return null;
+        get => GetSettingsStorage().SettingsFilePath;
+        set => GetSettingsStorage().SettingsFilePath = value;
     }
 
-    public static string? GetEnvironmentConfigPath()
+    public static string? CustomConfigPath
     {
-        string? env = Environment.GetEnvironmentVariable("CATALYST_CONFIG");
-        if (!string.IsNullOrWhiteSpace(env)) return env.Trim('"', '\'');
-
-        env = Environment.GetEnvironmentVariable("CATALYST_APPS_YAML");
-        if (!string.IsNullOrWhiteSpace(env)) return env.Trim('"', '\'');
-
-        env = Environment.GetEnvironmentVariable("CATALYST_CONFIG_PATH");
-        if (!string.IsNullOrWhiteSpace(env)) return env.Trim('"', '\'');
-
-        return null;
+        get => GetPathResolver().CustomConfigPath;
+        set => GetPathResolver().CustomConfigPath = value;
     }
 
-    public static string? GetUserConfigPath()
-    {
-        try
-        {
-            if (File.Exists(SettingsFilePath))
-            {
-                string json = File.ReadAllText(SettingsFilePath);
-                var settings = JsonSerializer.Deserialize<UserSettings>(json);
-                if (!string.IsNullOrWhiteSpace(settings?.ConfigPath))
-                {
-                    return settings.ConfigPath;
-                }
-            }
-        }
-        catch
-        {
-            // Ignore settings read errors
-        }
-        return null;
-    }
+    public static string? ParseCommandLineConfigPath(string[]? args = null) =>
+        GetPathResolver().ParseCommandLineConfigPath(args);
+
+    public static string? GetEnvironmentConfigPath() =>
+        GetPathResolver().GetEnvironmentConfigPath();
+
+    public static string? GetUserConfigPath() =>
+        GetSettingsStorage().LoadSettings()?.ConfigPath;
 
     public static void SetUserConfigPath(string? path)
     {
-        try
-        {
-            string? dir = Path.GetDirectoryName(SettingsFilePath);
-            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-            {
-                Directory.CreateDirectory(dir);
-            }
-
-            var settings = new UserSettings { ConfigPath = path };
-            string json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(SettingsFilePath, json);
-        }
-        catch
-        {
-            // Ignore settings write errors
-        }
+        var storage = GetSettingsStorage();
+        var settings = storage.LoadSettings() ?? new UserSettings();
+        settings.ConfigPath = path;
+        storage.SaveSettings(settings);
     }
 
-    public static string GetDefaultConfigPath()
-    {
-        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-        var dir = new DirectoryInfo(baseDir);
-        while (dir != null)
-        {
-            string candidate = Path.Combine(dir.FullName, DefaultFileName);
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-            dir = dir.Parent;
-        }
+    public static string GetDefaultConfigPath() =>
+        GetPathResolver().GetDefaultConfigPath();
 
-        return Path.GetFullPath(Path.Combine(baseDir, DefaultFileName));
-    }
+    public static string GetActiveConfigPath(string[]? args = null) =>
+        GetPathResolver().GetActiveConfigPath(args);
 
-    public static string GetActiveConfigPath(string[]? args = null)
-    {
-        if (!string.IsNullOrWhiteSpace(CustomConfigPath))
-        {
-            return Path.GetFullPath(CustomConfigPath);
-        }
+    public static string GetRootDir(string? configPath = null) =>
+        GetPathResolver().GetRootDir(configPath);
 
-        string? cli = ParseCommandLineConfigPath(args);
-        if (!string.IsNullOrWhiteSpace(cli))
-        {
-            return Path.GetFullPath(cli);
-        }
+    public static AppConfigFile? LoadConfigFile(string configPath) =>
+        GetConfigRepository().LoadConfigFile(configPath);
 
-        string? env = GetEnvironmentConfigPath();
-        if (!string.IsNullOrWhiteSpace(env))
-        {
-            return Path.GetFullPath(env);
-        }
+    public static void SaveConfigFile(AppConfigFile config, string configPath) =>
+        GetConfigRepository().SaveConfigFile(config, configPath);
 
-        string? userPath = GetUserConfigPath();
-        if (!string.IsNullOrWhiteSpace(userPath))
-        {
-            return Path.GetFullPath(userPath);
-        }
+    public static AppConfigFile CreateConfigFile(IEnumerable<AppInfo> apps, string hotkey, string rootDir) =>
+        GetAppConfigService().CreateConfigFile(apps, hotkey);
 
-        return GetDefaultConfigPath();
-    }
-
-    public static string GetRootDir(string? configPath = null)
-    {
-        string activePath = string.IsNullOrWhiteSpace(configPath) ? GetActiveConfigPath() : configPath;
-        string? dir = Path.GetDirectoryName(Path.GetFullPath(activePath));
-        return string.IsNullOrWhiteSpace(dir) ? AppDomain.CurrentDomain.BaseDirectory : dir;
-    }
-
-    public static AppConfigFile? LoadConfigFile(string configPath)
-    {
-        if (!File.Exists(configPath)) return null;
-
-        var yaml = File.ReadAllText(configPath);
-        var deserializer = new DeserializerBuilder()
-            .WithNamingConvention(CamelCaseNamingConvention.Instance)
-            .IgnoreUnmatchedProperties()
-            .Build();
-
-        return deserializer.Deserialize<AppConfigFile>(yaml);
-    }
-
-    public static void SaveConfigFile(AppConfigFile config, string configPath)
-    {
-        string? dir = Path.GetDirectoryName(configPath);
-        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-        {
-            Directory.CreateDirectory(dir);
-        }
-
-        var serializer = new SerializerBuilder()
-            .WithNamingConvention(CamelCaseNamingConvention.Instance)
-            .Build();
-
-        string yaml = serializer.Serialize(config);
-        File.WriteAllText(configPath, yaml);
-    }
-}
-
-public class UserSettings
-{
-    public string? ConfigPath { get; set; }
+    public static void SaveConfigFile(IEnumerable<AppInfo> apps, string hotkey, string configPath) =>
+        GetAppConfigService().SaveApps(apps, hotkey, configPath);
 }

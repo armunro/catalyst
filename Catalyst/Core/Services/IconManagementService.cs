@@ -2,34 +2,28 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Windows.Media.Imaging;
-using Catalyst.Adapters.Icons;
 using Catalyst.Core.Ports.Inbound;
 using Catalyst.Core.Ports.Outbound;
-using Catalyst.Core.Services;
-using Microsoft.Extensions.DependencyInjection;
 using SkiaSharp;
 
-namespace Catalyst;
+namespace Catalyst.Core.Services;
 
-/// <summary>
-/// Backward-compatible facade delegating to hexagonal icon renderer and management service.
-/// </summary>
-public class IconGenerator
+public class IconManagementService : IIconManagementService
 {
-    private static IIconRenderer GetRenderer() =>
-        App.Services?.GetService<IIconRenderer>() ?? new SkiaIconRenderer();
+    private readonly IIconRenderer _iconRenderer;
+    private readonly IAppConfigurationService _configurationService;
 
-    private static IIconManagementService GetManagementService() =>
-        App.Services?.GetService<IIconManagementService>() ?? new IconManagementService(
-            GetRenderer(),
-            new AppConfigurationService(
-                new Adapters.Persistence.YamlConfigRepository(),
-                new Adapters.Persistence.JsonSettingsStorage(),
-                new Adapters.Persistence.PathResolver(new Adapters.Persistence.JsonSettingsStorage())));
-
-    public void Generate(List<AppInfo> apps, string rootDir, Action<string>? logger = null)
+    public IconManagementService(
+        IIconRenderer iconRenderer,
+        IAppConfigurationService configurationService)
     {
-        string iconsBaseDir = Path.Combine(rootDir, "icons");
+        _iconRenderer = iconRenderer;
+        _configurationService = configurationService;
+    }
+
+    public void GenerateAllIcons(IEnumerable<AppInfo> apps, Action<string>? logger = null)
+    {
+        string iconsBaseDir = _configurationService.IconsBaseDir;
         if (!Directory.Exists(iconsBaseDir))
         {
             Directory.CreateDirectory(iconsBaseDir);
@@ -37,12 +31,15 @@ public class IconGenerator
 
         foreach (var app in apps)
         {
-            GenerateIcon(app, iconsBaseDir, logger, rootDir);
+            GenerateIcon(app, logger);
         }
     }
 
-    public void GenerateIcon(AppInfo app, string iconsBaseDir, Action<string>? logger = null, string? rootDir = null)
+    public void GenerateIcon(AppInfo app, Action<string>? logger = null)
     {
+        string iconsBaseDir = _configurationService.IconsBaseDir;
+        string rootDir = _configurationService.RootDir;
+
         logger?.Invoke($"Generating icon for {app.Name}...");
         string appDir = Path.Combine(iconsBaseDir, app.Name);
         if (!Directory.Exists(appDir))
@@ -50,14 +47,13 @@ public class IconGenerator
             Directory.CreateDirectory(appDir);
         }
 
-        var renderer = GetRenderer();
-        using var mainBitmap = renderer.RenderIconBitmap(app, 512, iconsBaseDir, rootDir, logger);
+        using var mainBitmap = _iconRenderer.RenderIconBitmap(app, 512, iconsBaseDir, rootDir, logger);
 
         // Save main icon (512x512)
         string mainOutputPath = Path.Combine(appDir, $"{app.Name}.png");
         try
         {
-            renderer.SavePng(mainBitmap, mainOutputPath);
+            _iconRenderer.SavePng(mainBitmap, mainOutputPath);
             logger?.Invoke($"Generated main icon for {app.Name} at {mainOutputPath}");
         }
         catch (Exception ex)
@@ -72,7 +68,7 @@ public class IconGenerator
 
         foreach (var fSize in faviconSizes)
         {
-            using var sizeBitmap = renderer.RenderIconBitmap(app, fSize, iconsBaseDir, rootDir, logger);
+            using var sizeBitmap = _iconRenderer.RenderIconBitmap(app, fSize, iconsBaseDir, rootDir, logger);
             if (sizeBitmap == null) continue;
 
             string faviconPngPath = Path.Combine(appDir, $"favicon-{fSize}x{fSize}.png");
@@ -80,7 +76,7 @@ public class IconGenerator
             {
                 using var image = SKImage.FromBitmap(sizeBitmap);
                 using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-
+                
                 using (var stream = File.Open(faviconPngPath, FileMode.Create, FileAccess.Write))
                 {
                     data.SaveTo(stream);
@@ -102,7 +98,7 @@ public class IconGenerator
         {
             if (iconImages.Count > 0)
             {
-                renderer.SaveAsIco(iconImages, iconDimensions, icoPath);
+                _iconRenderer.SaveAsIco(iconImages, iconDimensions, icoPath);
                 logger?.Invoke($"Generated favicon.ico for {app.Name}");
             }
         }
@@ -112,18 +108,10 @@ public class IconGenerator
         }
     }
 
-    public BitmapSource? RenderPreview(AppInfo app, string iconsBaseDir, string? rootDir = null, int size = 512)
+    public BitmapSource? RenderPreview(AppInfo app, int size = 512)
     {
-        return GetRenderer().RenderPreview(app, iconsBaseDir, rootDir, size);
-    }
-
-    public SKBitmap RenderIconBitmap(AppInfo app, int size, string iconsBaseDir, string? rootDir = null, Action<string>? logger = null)
-    {
-        return GetRenderer().RenderIconBitmap(app, size, iconsBaseDir, rootDir, logger);
-    }
-
-    public static BitmapSource ToBitmapSource(SKBitmap bitmap)
-    {
-        return SkiaIconRenderer.ToBitmapSource(bitmap);
+        string iconsBaseDir = _configurationService.IconsBaseDir;
+        string rootDir = _configurationService.RootDir;
+        return _iconRenderer.RenderPreview(app, iconsBaseDir, rootDir, size);
     }
 }

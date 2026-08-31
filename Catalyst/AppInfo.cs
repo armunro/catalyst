@@ -38,6 +38,7 @@ public class AppInfo : INotifyPropertyChanged
     private string _svgOverride = string.Empty;
     private string _iconPath = string.Empty;
     private string _shortcutIndex = string.Empty;
+    private bool _isHidden = false;
     private Process? _process;
     private BitmapSource? _previewSource;
 
@@ -175,6 +176,23 @@ public class AppInfo : INotifyPropertyChanged
     }
 
     public bool HasShortcut => !string.IsNullOrEmpty(ShortcutIndex);
+
+    public bool IsHidden
+    {
+        get => _isHidden;
+        set
+        {
+            _isHidden = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(Hidden));
+        }
+    }
+
+    public bool Hidden
+    {
+        get => _isHidden;
+        set => IsHidden = value;
+    }
 
     public string Color 
     { 

@@ -118,6 +118,11 @@
                  ItemContainerStyle="{StaticResource DittoCardItemStyle}"
                  SelectionChanged="LstApps_SelectionChanged"
                  MouseDoubleClick="LstApps_MouseDoubleClick"
+                 PreviewMouseLeftButtonDown="LstApps_PreviewMouseLeftButtonDown"
+                 MouseMove="LstApps_MouseMove"
+                 DragOver="LstApps_DragOver"
+                 Drop="LstApps_Drop"
+                 AllowDrop="True"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                  ScrollViewer.VerticalScrollBarVisibility="Auto">
             <ListBox.ItemTemplate>
@@ -138,6 +143,17 @@
                                 <MenuItem Header="View Live Logs" Click="CtxMenuLogs_Click">
                                     <MenuItem.Icon>
                                         <ui:SymbolIcon Symbol="DocumentBulletList24" Foreground="#60A5FA"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <Separator/>
+                                <MenuItem Header="Move Up" Click="CtxMenuMoveUp_Click">
+                                    <MenuItem.Icon>
+                                        <ui:SymbolIcon Symbol="ArrowUp24"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="Move Down" Click="CtxMenuMoveDown_Click">
+                                    <MenuItem.Icon>
+                                        <ui:SymbolIcon Symbol="ArrowDown24"/>
                                     </MenuItem.Icon>
                                 </MenuItem>
                                 <Separator/>

@@ -1,8 +1,11 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Media;
 using Catalyst;
 using Catalyst.Services;
+using Microsoft.Extensions.DependencyInjection;
 using SkiaSharp;
 using Xunit;
 using YamlDotNet.Serialization;
@@ -719,5 +722,403 @@ apps:
         {
             try { Directory.Delete(tempDir, true); } catch { }
         }
+    }
+
+    [Fact]
+    public void AppsYaml_SerializesAndDeserializesHiddenApps()
+    {
+        string yamlInput = @"hotkey: Alt+Space
+apps:
+- name: VisibleApp
+  hidden: false
+  launch:
+    executablePath: C:\Tools\tool.exe
+- name: HiddenApp
+  hidden: true
+  launch:
+    executablePath: C:\Tools\hidden.exe
+";
+
+        var deserializer = new DeserializerBuilder()
+            .WithNamingConvention(CamelCaseNamingConvention.Instance)
+            .IgnoreUnmatchedProperties()
+            .Build();
+
+        var config = deserializer.Deserialize<AppConfigFile>(yamlInput);
+
+        Assert.NotNull(config);
+        Assert.Equal(2, config.Apps.Count);
+        Assert.False(config.Apps[0].Hidden);
+        Assert.True(config.Apps[1].Hidden);
+
+        var serializer = new SerializerBuilder()
+            .WithNamingConvention(CamelCaseNamingConvention.Instance)
+            .Build();
+
+        string serialized = serializer.Serialize(config);
+        Assert.Contains("hidden: false", serialized);
+        Assert.Contains("hidden: true", serialized);
+
+        var roundTripped = deserializer.Deserialize<AppConfigFile>(serialized);
+        Assert.NotNull(roundTripped);
+        Assert.False(roundTripped.Apps[0].Hidden);
+        Assert.True(roundTripped.Apps[1].Hidden);
+    }
+
+    [Fact]
+    public void AppInfo_HiddenProperty_NotifiesPropertyChanged()
+    {
+        var app = new AppInfo
+        {
+            Name = "TestApp",
+            IsHidden = false
+        };
+
+        var changedProperties = new List<string>();
+        app.PropertyChanged += (sender, args) =>
+        {
+            if (args.PropertyName != null)
+                changedProperties.Add(args.PropertyName);
+        };
+
+        app.IsHidden = true;
+        Assert.True(app.IsHidden);
+        Assert.True(app.Hidden);
+        Assert.Contains(nameof(AppInfo.IsHidden), changedProperties);
+        Assert.Contains(nameof(AppInfo.Hidden), changedProperties);
+
+        changedProperties.Clear();
+        app.Hidden = false;
+        Assert.False(app.IsHidden);
+        Assert.False(app.Hidden);
+        Assert.Contains(nameof(AppInfo.IsHidden), changedProperties);
+        Assert.Contains(nameof(AppInfo.Hidden), changedProperties);
+    }
+
+    [Fact]
+    public void ConfigService_CreateConfigFile_MaintainsAppOrderAfterReorder()
+    {
+        var app1 = new AppInfo { Name = "App1", ExecutablePath = @"C:\App1.exe" };
+        var app2 = new AppInfo { Name = "App2", ExecutablePath = @"C:\App2.exe" };
+        var app3 = new AppInfo { Name = "App3", ExecutablePath = @"C:\App3.exe" };
+
+        var appsList = new ObservableCollection<AppInfo> { app1, app2, app3 };
+
+        // Initial order: App1, App2, App3
+        var initialConfig = ConfigService.CreateConfigFile(appsList, "Alt+Space", @"C:\");
+        Assert.Equal(3, initialConfig.Apps.Count);
+        Assert.Equal("App1", initialConfig.Apps[0].Name);
+        Assert.Equal("App2", initialConfig.Apps[1].Name);
+        Assert.Equal("App3", initialConfig.Apps[2].Name);
+
+        // Move App3 to index 0 (top)
+        appsList.Move(2, 0);
+
+        var reorderedConfig = ConfigService.CreateConfigFile(appsList, "Alt+Space", @"C:\");
+        Assert.Equal(3, reorderedConfig.Apps.Count);
+        Assert.Equal("App3", reorderedConfig.Apps[0].Name);
+        Assert.Equal("App1", reorderedConfig.Apps[1].Name);
+        Assert.Equal("App2", reorderedConfig.Apps[2].Name);
+
+        // Move App1 down to index 2 (bottom)
+        appsList.Move(1, 2);
+
+        var reorderedConfig2 = ConfigService.CreateConfigFile(appsList, "Alt+Space", @"C:\");
+        Assert.Equal(3, reorderedConfig2.Apps.Count);
+        Assert.Equal("App3", reorderedConfig2.Apps[0].Name);
+        Assert.Equal("App2", reorderedConfig2.Apps[1].Name);
+        Assert.Equal("App1", reorderedConfig2.Apps[2].Name);
+    }
+
+    [Fact]
+    public void ConfigService_SaveAndLoad_PreservesReorderedApps()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystReorderTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        string configPath = Path.Combine(tempDir, "apps.yaml");
+
+        try
+        {
+            var apps = new ObservableCollection<AppInfo>
+            {
+                new() { Name = "FirstApp", ExecutablePath = @"C:\First.exe", IsHidden = false },
+                new() { Name = "SecondApp", ExecutablePath = @"C:\Second.exe", IsHidden = true },
+                new() { Name = "ThirdApp", ExecutablePath = @"C:\Third.exe", IsHidden = false }
+            };
+
+            // Reorder: swap FirstApp and ThirdApp
+            apps.Move(2, 0);
+
+            ConfigService.SaveConfigFile(apps, "Ctrl+Shift+A", configPath);
+            Assert.True(File.Exists(configPath));
+
+            var loadedConfig = ConfigService.LoadConfigFile(configPath);
+            Assert.NotNull(loadedConfig);
+            Assert.Equal("Ctrl+Shift+A", loadedConfig.Hotkey);
+            Assert.Equal(3, loadedConfig.Apps.Count);
+            Assert.Equal("ThirdApp", loadedConfig.Apps[0].Name);
+            Assert.False(loadedConfig.Apps[0].Hidden);
+            Assert.Equal("FirstApp", loadedConfig.Apps[1].Name);
+            Assert.False(loadedConfig.Apps[1].Hidden);
+            Assert.Equal("SecondApp", loadedConfig.Apps[2].Name);
+            Assert.True(loadedConfig.Apps[2].Hidden);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void ListCollectionView_MainWindowFilter_DoesNotFilterAppManagementWindowView()
+    {
+        var apps = new ObservableCollection<AppInfo>
+        {
+            new() { Name = "VisibleApp", ExecutablePath = @"C:\Visible.exe", IsHidden = false },
+            new() { Name = "HiddenApp", ExecutablePath = @"C:\Hidden.exe", IsHidden = true }
+        };
+
+        // MainWindow view with filter hiding hidden apps
+        var mainWindowView = new System.Windows.Data.ListCollectionView(apps)
+        {
+            Filter = item => item is AppInfo a && !a.IsHidden
+        };
+
+        // AppManagement view without filter
+        var appManagementView = new System.Windows.Data.ListCollectionView(apps);
+
+        var mainWindowList = mainWindowView.Cast<AppInfo>().ToList();
+        var appManagementList = appManagementView.Cast<AppInfo>().ToList();
+
+        Assert.Single(mainWindowList);
+        Assert.Equal("VisibleApp", mainWindowList[0].Name);
+
+        Assert.Equal(2, appManagementList.Count);
+        Assert.Contains(appManagementList, a => a.Name == "HiddenApp");
+        Assert.Contains(appManagementList, a => a.Name == "VisibleApp");
+    }
+
+    [Fact]
+    public void DependencyInjection_RegistersAllHexagonalPortsAndAdapters()
+    {
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        Catalyst.DependencyInjection.ServiceCollectionExtensions.AddCatalystServices(services);
+        var provider = services.BuildServiceProvider();
+
+        // Check Outbound Driven Ports
+        Assert.NotNull(provider.GetService<Catalyst.Core.Ports.Outbound.IConfigRepository>());
+        Assert.NotNull(provider.GetService<Catalyst.Core.Ports.Outbound.ISettingsStorage>());
+        Assert.NotNull(provider.GetService<Catalyst.Core.Ports.Outbound.IPathResolver>());
+        Assert.NotNull(provider.GetService<Catalyst.Core.Ports.Outbound.IProcessExecutor>());
+        Assert.NotNull(provider.GetService<Catalyst.Core.Ports.Outbound.IIconRenderer>());
+        Assert.NotNull(provider.GetService<Catalyst.Core.Ports.Outbound.IGlobalHotkeyHook>());
+        Assert.NotNull(provider.GetService<Catalyst.Core.Ports.Outbound.IWindowPlacementService>());
+
+        // Check Inbound Driving Ports / Application Services
+        Assert.NotNull(provider.GetService<Catalyst.Core.Ports.Inbound.IAppConfigurationService>());
+        Assert.NotNull(provider.GetService<Catalyst.Core.Ports.Inbound.IAppLauncherService>());
+        Assert.NotNull(provider.GetService<Catalyst.Core.Ports.Inbound.IIconManagementService>());
+        Assert.NotNull(provider.GetService<Catalyst.Core.Ports.Inbound.IHotkeyService>());
+
+        // Check UI & Navigation
+        Assert.NotNull(provider.GetService<Catalyst.Adapters.UI.Navigation.IWindowService>());
+        Assert.NotNull(provider.GetService<Catalyst.Adapters.UI.ViewModels.MainWindowViewModel>());
+        Assert.NotNull(provider.GetService<Catalyst.Adapters.UI.ViewModels.AppManagementViewModel>());
+    }
+
+    [Fact]
+    public void MainWindowViewModel_FilterAndReordering_WorksAsExpected()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystMainVMTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        string tempConfigFile = Path.Combine(tempDir, "apps.yaml");
+
+        try
+        {
+            var mockConfigRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var mockSettings = new Catalyst.Adapters.Persistence.JsonSettingsStorage();
+            var mockPathResolver = new Catalyst.Adapters.Persistence.PathResolver(mockSettings);
+            mockPathResolver.CustomConfigPath = tempConfigFile;
+            var configService = new Catalyst.Core.Services.AppConfigurationService(mockConfigRepo, mockSettings, mockPathResolver);
+            var processExecutor = new Catalyst.Adapters.Processes.WindowsProcessExecutor();
+            var launcherService = new Catalyst.Core.Services.AppLauncherService(processExecutor, configService);
+            var hotkeyService = new Catalyst.Core.Services.HotkeyService(new Catalyst.Adapters.Platform.WindowsHotkeyHook());
+            var windowService = new Catalyst.Adapters.UI.Navigation.WindowService(null!, new Catalyst.Adapters.Platform.WindowPlacementService());
+
+            var vm = new Catalyst.Adapters.UI.ViewModels.MainWindowViewModel(
+                configService,
+                launcherService,
+                hotkeyService,
+                windowService);
+
+            var app1 = new AppInfo { Name = "AlphaApp", ExecutablePath = @"C:\Alpha.exe", IsHidden = false };
+            var app2 = new AppInfo { Name = "BetaApp", ExecutablePath = @"C:\Beta.exe", IsHidden = true };
+            var app3 = new AppInfo { Name = "GammaApp", ExecutablePath = @"C:\Gamma.exe", IsHidden = false };
+
+            vm.Apps.Add(app1);
+            vm.Apps.Add(app2);
+            vm.Apps.Add(app3);
+
+            vm.RefreshFilterAndShortcuts();
+
+            // Hidden app should not be in visible AppsView
+            var visible = vm.AppsView.Cast<AppInfo>().ToList();
+            Assert.Equal(2, visible.Count);
+            Assert.Equal("AlphaApp", visible[0].Name);
+            Assert.Equal("GammaApp", visible[1].Name);
+            Assert.Equal("1", visible[0].ShortcutIndex);
+            Assert.Equal("2", visible[1].ShortcutIndex);
+
+            // Filter by SearchText
+            vm.SearchText = "Gamma";
+            var filtered = vm.AppsView.Cast<AppInfo>().ToList();
+            Assert.Single(filtered);
+            Assert.Equal("GammaApp", filtered[0].Name);
+            Assert.Equal("1", filtered[0].ShortcutIndex);
+
+            // Reset search
+            vm.SearchText = "";
+            Assert.Equal(2, vm.AppsView.Cast<AppInfo>().Count());
+
+            // Move Down
+            vm.MoveAppDown(app1);
+            var visibleAfterMove = vm.AppsView.Cast<AppInfo>().ToList();
+            Assert.Equal("GammaApp", visibleAfterMove[0].Name);
+            Assert.Equal("AlphaApp", visibleAfterMove[1].Name);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void AppManagementViewModel_CRUD_WorksAsExpected()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystVMTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        string tempConfigFile = Path.Combine(tempDir, "apps.yaml");
+
+        try
+        {
+            var mockConfigRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var mockSettings = new Catalyst.Adapters.Persistence.JsonSettingsStorage();
+            var mockPathResolver = new Catalyst.Adapters.Persistence.PathResolver(mockSettings);
+            mockPathResolver.CustomConfigPath = tempConfigFile;
+            var configService = new Catalyst.Core.Services.AppConfigurationService(mockConfigRepo, mockSettings, mockPathResolver);
+            var iconRenderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+            var iconService = new Catalyst.Core.Services.IconManagementService(iconRenderer, configService);
+            var hotkeyService = new Catalyst.Core.Services.HotkeyService(new Catalyst.Adapters.Platform.WindowsHotkeyHook());
+            var windowService = new Catalyst.Adapters.UI.Navigation.WindowService(null!, new Catalyst.Adapters.Platform.WindowPlacementService());
+
+            var vm = new Catalyst.Adapters.UI.ViewModels.AppManagementViewModel(
+                configService,
+                iconService,
+                hotkeyService,
+                windowService);
+
+            var app1 = new AppInfo { Name = "AppA", ExecutablePath = @"C:\A.exe" };
+            var app2 = new AppInfo { Name = "AppB", ExecutablePath = @"C:\B.exe" };
+
+            vm.Initialize(new List<AppInfo> { app1, app2 }, "Alt+Space", tempConfigFile);
+
+            Assert.Equal(2, vm.Apps.Count);
+            Assert.Equal(app1, vm.SelectedApp);
+
+            // Add New App
+            var newApp = vm.AddNewApp();
+            Assert.Equal(3, vm.Apps.Count);
+            Assert.Equal(newApp, vm.SelectedApp);
+
+            // Move Up
+            vm.MoveAppUp(newApp);
+            Assert.Equal(1, vm.Apps.IndexOf(newApp));
+
+            // Delete App
+            vm.DeleteApp(newApp);
+            Assert.Equal(2, vm.Apps.Count);
+            Assert.DoesNotContain(newApp, vm.Apps);
+
+            // Validate Hotkey
+            Assert.True(vm.ValidateHotkey("Ctrl+Shift+A"));
+            Assert.False(vm.ValidateHotkey("InvalidKeyNameHere"));
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    private class FakeProcessExecutor : Catalyst.Core.Ports.Outbound.IProcessExecutor
+    {
+        public bool StartCalled { get; private set; }
+        public bool StopCalled { get; private set; }
+        public bool UrlOpened { get; private set; }
+        public string? LastOpenedUrl { get; private set; }
+
+        public System.Threading.Tasks.Task<System.Diagnostics.Process?> StartProcessAsync(
+            AppInfo app,
+            string rootDir,
+            Action<string> onOutputReceived,
+            Action<System.Diagnostics.Process> onExited)
+        {
+            StartCalled = true;
+            onOutputReceived($"[TEST] Started {app.Name}");
+            // Return null or simulated process
+            return System.Threading.Tasks.Task.FromResult<System.Diagnostics.Process?>(null);
+        }
+
+        public System.Threading.Tasks.Task<bool> StopProcessAsync(System.Diagnostics.Process process, Action<string>? logCallback = null)
+        {
+            StopCalled = true;
+            logCallback?.Invoke("[TEST] Stopped");
+            return System.Threading.Tasks.Task.FromResult(true);
+        }
+
+        public bool IsProcessRunning(System.Diagnostics.Process? process) => false;
+
+        public void OpenUrl(string url)
+        {
+            UrlOpened = true;
+            LastOpenedUrl = url;
+        }
+
+        public void OpenDirectory(string directoryPath) { }
+    }
+
+    [Fact]
+    public async System.Threading.Tasks.Task AppLauncherService_ExecutesViaProcessExecutorPort()
+    {
+        var fakeExecutor = new FakeProcessExecutor();
+        var mockConfigRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+        var mockSettings = new Catalyst.Adapters.Persistence.JsonSettingsStorage();
+        var mockPathResolver = new Catalyst.Adapters.Persistence.PathResolver(mockSettings);
+        mockPathResolver.CustomConfigPath = Path.Combine(Path.GetTempPath(), "catalyst_test_dummy.yaml");
+        var configService = new Catalyst.Core.Services.AppConfigurationService(mockConfigRepo, mockSettings, mockPathResolver);
+
+        var launcherService = new Catalyst.Core.Services.AppLauncherService(fakeExecutor, configService);
+
+        var app = new AppInfo
+        {
+            Name = "TestCLIApp",
+            ExecutablePath = @"C:\TestApp.exe"
+        };
+
+        var logs = new List<string>();
+        await launcherService.LaunchAppAsync(app, msg => logs.Add(msg));
+
+        Assert.True(fakeExecutor.StartCalled);
+        Assert.Contains(logs, l => l.Contains("Started TestCLIApp"));
+
+        // URL launch test
+        var urlApp = new AppInfo
+        {
+            Name = "WebDashboard",
+            ExecutablePath = "https://localhost:5001"
+        };
+
+        await launcherService.LaunchAppAsync(urlApp);
+        Assert.True(fakeExecutor.UrlOpened);
+        Assert.Equal("https://localhost:5001", fakeExecutor.LastOpenedUrl);
     }
 }

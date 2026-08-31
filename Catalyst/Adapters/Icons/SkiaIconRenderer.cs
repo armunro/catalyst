@@ -1,0 +1,405 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Net.Http;
+using System.Windows.Media.Imaging;
+using Catalyst.Core.Ports.Outbound;
+using SkiaSharp;
+using Svg.Skia;
+
+namespace Catalyst.Adapters.Icons;
+
+public class SkiaIconRenderer : IIconRenderer
+{
+    private static readonly HttpClient HttpClient = new()
+    {
+        DefaultRequestHeaders = { { "User-Agent", "CatalystIconGenerator" } }
+    };
+
+    public SKBitmap RenderIconBitmap(AppInfo app, int size, string iconsBaseDir, string? rootDir = null, Action<string>? logger = null)
+    {
+        // 2x supersampling for smooth anti-aliased geometry, curves and gradients
+        int superScale = 2;
+        int renderSize = size * superScale;
+
+        using var highResBitmap = new SKBitmap(renderSize, renderSize, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using (var canvas = new SKCanvas(highResBitmap))
+        {
+            canvas.Clear(SKColors.Transparent);
+            RenderToCanvas(canvas, app, renderSize, iconsBaseDir, rootDir, logger);
+        }
+
+        var scaled = new SKBitmap(size, size, SKColorType.Rgba8888, SKAlphaType.Premul);
+        if (highResBitmap.ScalePixels(scaled.PeekPixels(), SKFilterQuality.High))
+        {
+            return scaled;
+        }
+
+        // Direct fallback
+        var directBitmap = new SKBitmap(size, size, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using (var directCanvas = new SKCanvas(directBitmap))
+        {
+            directCanvas.Clear(SKColors.Transparent);
+            RenderToCanvas(directCanvas, app, size, iconsBaseDir, rootDir, logger);
+        }
+        return directBitmap;
+    }
+
+    public BitmapSource? RenderPreview(AppInfo app, string iconsBaseDir, string? rootDir = null, int size = 512)
+    {
+        try
+        {
+            using var bitmap = RenderIconBitmap(app, size, iconsBaseDir, rootDir);
+            return ToBitmapSource(bitmap);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error generating preview: {ex.Message}");
+            return null;
+        }
+    }
+
+    public void SavePng(SKBitmap bitmap, string outputPath)
+    {
+        using var image = SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        using var stream = File.Open(outputPath, FileMode.Create, FileAccess.Write);
+        data.SaveTo(stream);
+    }
+
+    public void SaveAsIco(List<byte[]> pngByteArrays, List<(int Width, int Height)> dimensions, string outputPath)
+    {
+        IcoEncoder.SaveAsIco(pngByteArrays, dimensions, outputPath);
+    }
+
+    public static BitmapSource ToBitmapSource(SKBitmap bitmap)
+    {
+        using var image = SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        using var stream = new MemoryStream(data.ToArray());
+
+        var bi = new BitmapImage();
+        bi.BeginInit();
+        bi.CacheOption = BitmapCacheOption.OnLoad;
+        bi.StreamSource = stream;
+        bi.EndInit();
+        bi.Freeze();
+        return bi;
+    }
+
+    private void RenderToCanvas(SKCanvas canvas, AppInfo app, int size, string iconsBaseDir, string? rootDir = null, Action<string>? logger = null)
+    {
+        // CASE 1: Complete SVG Override
+        if (!string.IsNullOrWhiteSpace(app.SvgOverride))
+        {
+            try
+            {
+                var svg = LoadSvgContent(app.SvgOverride, rootDir);
+                if (svg?.Picture != null)
+                {
+                    DrawScaledPicture(canvas, svg.Picture, 0, 0, size, size, null);
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger?.Invoke($"Error rendering SVG override for {app.Name}: {ex.Message}");
+            }
+        }
+
+        // CASE 2: Background + (Custom Glyph OR Bootstrap Icon OR Text Label)
+        DrawBackground(canvas, app.Color, app.SecondaryColor, app.BackgroundType, app.GradientDirection, size);
+
+        // 2a. Custom Glyph SVG
+        if (!string.IsNullOrWhiteSpace(app.CustomGlyphSvg))
+        {
+            try
+            {
+                var svg = LoadSvgContent(app.CustomGlyphSvg, rootDir);
+                if (svg?.Picture != null)
+                {
+                    SKColor? glyphColor = null;
+                    if (!string.IsNullOrWhiteSpace(app.CustomGlyphColor) && SKColor.TryParse(app.CustomGlyphColor, out var parsedGlyphColor))
+                    {
+                        glyphColor = parsedGlyphColor;
+                    }
+
+                    float padding = size * 0.16f;
+                    float glyphSize = size - (padding * 2);
+                    DrawScaledPicture(canvas, svg.Picture, padding, padding, glyphSize, glyphSize, glyphColor);
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger?.Invoke($"Error rendering custom glyph SVG for {app.Name}: {ex.Message}");
+            }
+        }
+
+        // 2b. Bootstrap Icon
+        if (!string.IsNullOrWhiteSpace(app.BootstrapIcon))
+        {
+            try
+            {
+                string iconName = app.BootstrapIcon.Trim();
+                if (iconName.EndsWith(".svg", StringComparison.OrdinalIgnoreCase))
+                {
+                    iconName = iconName[..^4];
+                }
+
+                string svgContent = FetchBootstrapIconSvg(iconName, iconsBaseDir);
+                if (!string.IsNullOrEmpty(svgContent))
+                {
+                    var svg = new SKSvg();
+                    svg.FromSvg(svgContent);
+                    if (svg.Picture != null)
+                    {
+                        SKColor bootstrapColor = SKColors.White;
+                        if (!string.IsNullOrWhiteSpace(app.CustomGlyphColor) && SKColor.TryParse(app.CustomGlyphColor, out var parsedBootstrapColor))
+                        {
+                            bootstrapColor = parsedBootstrapColor;
+                        }
+
+                        float padding = size * 0.16f;
+                        float glyphSize = size - (padding * 2);
+                        DrawScaledPicture(canvas, svg.Picture, padding, padding, glyphSize, glyphSize, bootstrapColor);
+                        return;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger?.Invoke($"Error rendering Bootstrap icon for {app.Name}: {ex.Message}");
+            }
+        }
+
+        // 2c. Fallback Text Label
+        if (!string.IsNullOrWhiteSpace(app.Label))
+        {
+            try
+            {
+                DrawLabelText(canvas, app.Label, size);
+            }
+            catch (Exception ex)
+            {
+                logger?.Invoke($"Error rendering label text for {app.Name}: {ex.Message}");
+            }
+        }
+    }
+
+    private void DrawBackground(SKCanvas canvas, string primaryColorHex, string? secondaryColorHex, string? backgroundType, string? gradientDirection, int size)
+    {
+        if (!SKColor.TryParse(primaryColorHex, out var primaryColor))
+        {
+            primaryColor = SKColor.Parse("#1E88E4");
+        }
+
+        using var bgPaint = new SKPaint
+        {
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.High,
+            IsDither = true,
+            Style = SKPaintStyle.Fill
+        };
+
+        float cornerRadius = size * 0.2f;
+        var roundRect = new SKRoundRect(new SKRect(0, 0, size, size), cornerRadius, cornerRadius);
+
+        bool isGradient = string.Equals(backgroundType, "Gradient", StringComparison.OrdinalIgnoreCase);
+
+        if (isGradient)
+        {
+            SKColor startColor = primaryColor;
+            SKColor endColor;
+
+            if (!string.IsNullOrWhiteSpace(secondaryColorHex) && SKColor.TryParse(secondaryColorHex, out var parsedSecondaryColor))
+            {
+                endColor = parsedSecondaryColor;
+            }
+            else
+            {
+                startColor = Lerp(primaryColor, SKColors.White, 0.35f);
+                endColor = Lerp(primaryColor, SKColors.Black, 0.25f);
+            }
+
+            SKPoint p0;
+            SKPoint p1;
+
+            string dir = (gradientDirection ?? "Diagonal").ToLowerInvariant();
+            switch (dir)
+            {
+                case "vertical":
+                case "toptobottom":
+                    p0 = new SKPoint(size / 2f, 0);
+                    p1 = new SKPoint(size / 2f, size);
+                    break;
+                case "horizontal":
+                case "lefttoright":
+                    p0 = new SKPoint(0, size / 2f);
+                    p1 = new SKPoint(size, size / 2f);
+                    break;
+                case "diagonalup":
+                case "bottomlefttotopright":
+                    p0 = new SKPoint(0, size);
+                    p1 = new SKPoint(size, 0);
+                    break;
+                case "diagonal":
+                default:
+                    p0 = new SKPoint(0, 0);
+                    p1 = new SKPoint(size, size);
+                    break;
+            }
+
+            using var shader = SKShader.CreateLinearGradient(
+                p0,
+                p1,
+                new[] { startColor, endColor },
+                new[] { 0.0f, 1.0f },
+                SKShaderTileMode.Clamp);
+
+            bgPaint.Shader = shader;
+            canvas.DrawRoundRect(roundRect, bgPaint);
+        }
+        else
+        {
+            bgPaint.Color = primaryColor;
+            canvas.DrawRoundRect(roundRect, bgPaint);
+        }
+    }
+
+    private static SKColor Lerp(SKColor a, SKColor b, float t)
+    {
+        byte r = (byte)(a.Red + (b.Red - a.Red) * t);
+        byte g = (byte)(a.Green + (b.Green - a.Green) * t);
+        byte bl = (byte)(a.Blue + (b.Blue - a.Blue) * t);
+        byte alpha = (byte)(a.Alpha + (b.Alpha - a.Alpha) * t);
+        return new SKColor(r, g, bl, alpha);
+    }
+
+    private void DrawScaledPicture(SKCanvas canvas, SKPicture picture, float x, float y, float targetWidth, float targetHeight, SKColor? tintColor)
+    {
+        var bounds = picture.CullRect;
+        if (bounds.Width <= 0 || bounds.Height <= 0) return;
+
+        float scale = Math.Min(targetWidth / bounds.Width, targetHeight / bounds.Height);
+        float tx = x + (targetWidth - (bounds.Width * scale)) / 2f - (bounds.Left * scale);
+        float ty = y + (targetHeight - (bounds.Height * scale)) / 2f - (bounds.Top * scale);
+
+        var matrix = SKMatrix.CreateTranslation(tx, ty);
+        matrix = SKMatrix.Concat(matrix, SKMatrix.CreateScale(scale, scale));
+
+        using var paint = new SKPaint
+        {
+            IsAntialias = true,
+            FilterQuality = SKFilterQuality.High,
+            IsDither = true
+        };
+
+        if (tintColor.HasValue)
+        {
+            paint.ColorFilter = SKColorFilter.CreateBlendMode(tintColor.Value, SKBlendMode.SrcIn);
+        }
+
+        canvas.DrawPicture(picture, ref matrix, paint);
+    }
+
+    private void DrawLabelText(SKCanvas canvas, string text, int size)
+    {
+        using var textPaint = new SKPaint
+        {
+            Color = SKColors.White,
+            IsAntialias = true,
+            SubpixelText = true,
+            LcdRenderText = true,
+            FilterQuality = SKFilterQuality.High,
+            FakeBoldText = true,
+            TextAlign = SKTextAlign.Center,
+            Typeface = SKTypeface.FromFamilyName("Segoe UI", SKFontStyle.Bold)
+        };
+
+        float fontSize = size * 0.45f;
+        textPaint.TextSize = fontSize;
+        float textWidth = textPaint.MeasureText(text);
+        while (textWidth > size * 0.85f && fontSize > 12)
+        {
+            fontSize -= 4;
+            textPaint.TextSize = fontSize;
+            textWidth = textPaint.MeasureText(text);
+        }
+
+        var textBounds = new SKRect();
+        textPaint.MeasureText(text, ref textBounds);
+        float textX = size / 2f;
+        float textY = (size / 2f) - textBounds.MidY;
+        canvas.DrawText(text, textX, textY, textPaint);
+    }
+
+    private SKSvg? LoadSvgContent(string input, string? rootDir)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return null;
+
+        string trimmed = input.Trim();
+
+        string? resolvedFilePath = null;
+        if (File.Exists(trimmed))
+        {
+            resolvedFilePath = trimmed;
+        }
+        else if (!string.IsNullOrEmpty(rootDir))
+        {
+            string combined = Path.IsPathRooted(trimmed) ? trimmed : Path.GetFullPath(Path.Combine(rootDir, trimmed));
+            if (File.Exists(combined))
+            {
+                resolvedFilePath = combined;
+            }
+        }
+
+        var svg = new SKSvg();
+        if (resolvedFilePath != null)
+        {
+            svg.Load(resolvedFilePath);
+            return svg;
+        }
+
+        if (trimmed.StartsWith("<", StringComparison.OrdinalIgnoreCase))
+        {
+            svg.FromSvg(trimmed);
+            return svg;
+        }
+
+        string wrappedSvg = $@"<svg xmlns=""http://www.w3.org/2000/svg"" viewBox=""0 0 100 100""><path d=""{trimmed}"" fill=""white"" /></svg>";
+        svg.FromSvg(wrappedSvg);
+        return svg;
+    }
+
+    private string FetchBootstrapIconSvg(string name, string iconsBaseDir)
+    {
+        string cacheDir = Path.Combine(iconsBaseDir, "_bootstrap_cache");
+        if (!Directory.Exists(cacheDir))
+        {
+            Directory.CreateDirectory(cacheDir);
+        }
+        string cacheFile = Path.Combine(cacheDir, $"{name}.svg");
+
+        if (File.Exists(cacheFile))
+        {
+            return File.ReadAllText(cacheFile);
+        }
+
+        try
+        {
+            string url = $"https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/{name}.svg";
+            var response = HttpClient.GetAsync(url).GetAwaiter().GetResult();
+            if (response.IsSuccessStatusCode)
+            {
+                string svg = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                File.WriteAllText(cacheFile, svg);
+                return svg;
+            }
+        }
+        catch { }
+
+        return string.Empty;
+    }
+}

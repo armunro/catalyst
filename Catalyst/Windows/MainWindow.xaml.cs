@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -9,22 +7,20 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Forms;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
-using Catalyst.Services;
+using Catalyst.Adapters.UI.Navigation;
+using Catalyst.Adapters.UI.ViewModels;
+using Catalyst.Core.Ports.Inbound;
+using Microsoft.Extensions.DependencyInjection;
 using Wpf.Ui.Controls;
-using YamlDotNet.Serialization;
-using YamlDotNet.Serialization.NamingConventions;
 
 namespace Catalyst.Windows;
 
 public partial class MainWindow : FluentWindow
 {
     private const int SW_RESTORE = 9;
-    private const int SW_SHOW = 5;
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -32,108 +28,111 @@ public partial class MainWindow : FluentWindow
     [DllImport("user32.dll")]
     private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
-    private readonly ObservableCollection<AppInfo> _apps = new();
-    private ICollectionView? _appsView;
-    private readonly Dictionary<string, LogViewerWindow> _logWindows = new();
-    private NotifyIcon? _notifyIcon;
-    private HotkeyManager? _hotkeyManager;
-    private string _configuredHotkey = "Alt+Space";
-    private string? _configFilePath;
-    private bool _isExiting = false;
+    private readonly MainWindowViewModel _viewModel;
+    private readonly IHotkeyService _hotkeyService;
+    private readonly IWindowService _windowService;
+    private readonly IAppLauncherService _launcherService;
 
-    public MainWindow()
+    private System.Windows.Forms.NotifyIcon? _notifyIcon;
+    private bool _isExiting = false;
+    private System.Windows.Point _dragStartPoint;
+    private bool _isDragging = false;
+
+    public MainWindowViewModel ViewModel => _viewModel;
+
+    public MainWindow() : this(
+        App.Services != null ? App.Services.GetRequiredService<MainWindowViewModel>() : new MainWindowViewModel(
+            new Core.Services.AppConfigurationService(new Adapters.Persistence.YamlConfigRepository(), new Adapters.Persistence.JsonSettingsStorage(), new Adapters.Persistence.PathResolver(new Adapters.Persistence.JsonSettingsStorage())),
+            new Core.Services.AppLauncherService(new Adapters.Processes.WindowsProcessExecutor(), new Core.Services.AppConfigurationService(new Adapters.Persistence.YamlConfigRepository(), new Adapters.Persistence.JsonSettingsStorage(), new Adapters.Persistence.PathResolver(new Adapters.Persistence.JsonSettingsStorage()))),
+            new Core.Services.HotkeyService(new Adapters.Platform.WindowsHotkeyHook()),
+            new WindowService(App.Services!, new Adapters.Platform.WindowPlacementService())),
+        App.Services != null ? App.Services.GetRequiredService<IHotkeyService>() : new Core.Services.HotkeyService(new Adapters.Platform.WindowsHotkeyHook()),
+        App.Services != null ? App.Services.GetRequiredService<IWindowService>() : new WindowService(App.Services!, new Adapters.Platform.WindowPlacementService()),
+        App.Services != null ? App.Services.GetRequiredService<IAppLauncherService>() : new Core.Services.AppLauncherService(new Adapters.Processes.WindowsProcessExecutor(), new Core.Services.AppConfigurationService(new Adapters.Persistence.YamlConfigRepository(), new Adapters.Persistence.JsonSettingsStorage(), new Adapters.Persistence.PathResolver(new Adapters.Persistence.JsonSettingsStorage()))))
+    {
+    }
+
+    public MainWindow(
+        MainWindowViewModel viewModel,
+        IHotkeyService hotkeyService,
+        IWindowService windowService,
+        IAppLauncherService launcherService)
     {
         InitializeComponent();
-        
-        _appsView = CollectionViewSource.GetDefaultView(_apps);
-        _appsView.Filter = FilterApps;
 
-        LstApps.ItemsSource = _appsView;
-        this.Loaded += MainWindow_Loaded;
-        this.Closing += MainWindow_Closing;
-        this.Closed += MainWindow_Closed;
+        _viewModel = viewModel;
+        _hotkeyService = hotkeyService;
+        _windowService = windowService;
+        _launcherService = launcherService;
 
-        LoadApps();
-        SetupTrayIcon();
+        DataContext = _viewModel;
+        LstApps.ItemsSource = _viewModel.AppsView;
+
+        Loaded += MainWindow_Loaded;
+        Closing += MainWindow_Closing;
+        Closed += MainWindow_Closed;
     }
 
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        _windowService.PositionBottomRight(this);
+        SetupNotifyIcon();
         SetupHotkey();
-        DetectRunningApps();
-        PositionWindowAtBottomRight();
+        _viewModel.LoadApps();
         TxtSearch.Focus();
+    }
+
+    private void SetupNotifyIcon()
+    {
+        _notifyIcon = new System.Windows.Forms.NotifyIcon();
+        try
+        {
+            var iconStream = System.Windows.Application.GetResourceStream(new Uri("pack://application:,,,/favicon.ico"))?.Stream;
+            if (iconStream != null)
+            {
+                _notifyIcon.Icon = new System.Drawing.Icon(iconStream);
+            }
+            else
+            {
+                _notifyIcon.Icon = System.Drawing.SystemIcons.Application;
+            }
+        }
+        catch
+        {
+            _notifyIcon.Icon = System.Drawing.SystemIcons.Application;
+        }
+
+        _notifyIcon.Text = "Catalyst - Dev App Launcher";
+        _notifyIcon.Visible = true;
+
+        var contextMenu = new System.Windows.Forms.ContextMenuStrip();
+        contextMenu.Items.Add("Show Catalyst", null, (s, e) => Dispatcher.Invoke(RestoreWindow));
+        contextMenu.Items.Add("Manage Apps", null, (s, e) => Dispatcher.Invoke(() => _viewModel.OpenAppManagement(this)));
+        contextMenu.Items.Add("-");
+        contextMenu.Items.Add("Start All Visible", null, (s, e) => Dispatcher.Invoke(async () => await _viewModel.StartAllAsync()));
+        contextMenu.Items.Add("Stop All", null, (s, e) => Dispatcher.Invoke(async () => await _viewModel.StopAllAsync()));
+        contextMenu.Items.Add("-");
+        contextMenu.Items.Add("Detach & Exit Catalyst", null, (s, e) => Dispatcher.Invoke(DetachAndExit));
+        contextMenu.Items.Add("Exit (Stop All Apps)", null, (s, e) => Dispatcher.Invoke(ExitApplication));
+
+        _notifyIcon.ContextMenuStrip = contextMenu;
+        _notifyIcon.DoubleClick += (s, e) => Dispatcher.Invoke(RestoreWindow);
     }
 
     private void SetupHotkey()
     {
-        _hotkeyManager?.Dispose();
-        _hotkeyManager = new HotkeyManager();
-        if (_hotkeyManager.Register(this, _configuredHotkey, OnGlobalHotkeyTriggered, out string registeredHotkey))
+        _hotkeyService.RegisterHotkey(this, _viewModel.ConfiguredHotkey, () =>
         {
-            LblHotkeyHint.Text = $" • Hotkey: {registeredHotkey}";
-        }
-        else
-        {
-            LblHotkeyHint.Text = " • Hotkey: Failed";
-        }
-    }
-
-    private void OnGlobalHotkeyTriggered()
-    {
-        Dispatcher.Invoke(() =>
-        {
-            if (this.IsVisible && this.IsActive && this.WindowState != WindowState.Minimized)
+            if (this.IsVisible && this.WindowState != WindowState.Minimized && this.IsActive)
             {
                 this.Hide();
+                this.ShowInTaskbar = false;
             }
             else
             {
                 RestoreWindow();
             }
         });
-    }
-
-    private void PositionWindowAtBottomRight()
-    {
-        var primaryScreen = Screen.PrimaryScreen;
-        if (primaryScreen != null)
-        {
-            var workingArea = primaryScreen.WorkingArea;
-            this.Left = workingArea.Right - this.Width - 14;
-            this.Top = workingArea.Bottom - this.Height - 14;
-        }
-    }
-
-    private void SetupTrayIcon()
-    {
-        _notifyIcon = new NotifyIcon();
-        string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "favicon.ico");
-        if (File.Exists(iconPath))
-        {
-            _notifyIcon.Icon = new System.Drawing.Icon(iconPath);
-        }
-        else
-        {
-            string projectIconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "favicon.ico");
-            if (File.Exists(projectIconPath))
-            {
-                _notifyIcon.Icon = new System.Drawing.Icon(projectIconPath);
-            }
-        }
-        _notifyIcon.Visible = true;
-        _notifyIcon.Text = "Catalyst Launcher";
-        _notifyIcon.DoubleClick += (s, e) => RestoreWindow();
-
-        var contextMenu = new ContextMenuStrip();
-        contextMenu.Items.Add("Open Catalyst", null, (s, e) => RestoreWindow());
-        contextMenu.Items.Add("Manage Apps", null, (s, e) => OpenAppManagement());
-        contextMenu.Items.Add("Reload Apps", null, (s, e) => LoadApps());
-        contextMenu.Items.Add(new ToolStripSeparator());
-        contextMenu.Items.Add("Detach and Exit", null, (s, e) => DetachAndExit());
-        contextMenu.Items.Add("Exit", null, (s, e) => ExitApplication());
-
-        _notifyIcon.ContextMenuStrip = contextMenu;
     }
 
     private void MainWindow_Closing(object? sender, CancelEventArgs e)
@@ -148,7 +147,7 @@ public partial class MainWindow : FluentWindow
 
     private void MainWindow_Closed(object? sender, EventArgs e)
     {
-        _hotkeyManager?.Dispose();
+        _hotkeyService.UnregisterHotkey();
         _notifyIcon?.Dispose();
     }
 
@@ -157,7 +156,7 @@ public partial class MainWindow : FluentWindow
         this.Show();
         this.ShowInTaskbar = true;
         this.WindowState = WindowState.Normal;
-        PositionWindowAtBottomRight();
+        _windowService.PositionBottomRight(this);
 
         var helper = new WindowInteropHelper(this);
         ShowWindow(helper.Handle, SW_RESTORE);
@@ -171,12 +170,9 @@ public partial class MainWindow : FluentWindow
     private void ExitApplication()
     {
         _isExiting = true;
-        foreach (var app in _apps)
-        {
-            StopApp(app);
-        }
+        Task.Run(async () => await _viewModel.StopAllAsync()).GetAwaiter().GetResult();
         _notifyIcon?.Dispose();
-        _hotkeyManager?.Dispose();
+        _hotkeyService.UnregisterHotkey();
         System.Windows.Application.Current.Shutdown();
     }
 
@@ -184,227 +180,18 @@ public partial class MainWindow : FluentWindow
     {
         _isExiting = true;
         _notifyIcon?.Dispose();
-        _hotkeyManager?.Dispose();
+        _hotkeyService.UnregisterHotkey();
         System.Windows.Application.Current.Shutdown();
-    }
-
-    private void DetectRunningApps()
-    {
-        foreach (var app in _apps)
-        {
-            if (!app.IsLaunchable) continue;
-            
-            string target = app.LaunchTarget;
-            string processName = Path.GetFileNameWithoutExtension(target);
-            if (string.IsNullOrWhiteSpace(processName)) continue;
-
-            var existingProcesses = Process.GetProcessesByName(processName);
-            if (existingProcesses.Length > 0)
-            {
-                var process = existingProcesses[0];
-                app.Process = process;
-                
-                Task.Run(() =>
-                {
-                    try
-                    {
-                        process.EnableRaisingEvents = true;
-                        process.Exited += (s, e) => 
-                        {
-                            Dispatcher.Invoke(() => {
-                                app.Process = null;
-                                UpdateStatus();
-                            });
-                        };
-                        
-                        if (process.HasExited)
-                        {
-                            Dispatcher.Invoke(() => app.Process = null);
-                        }
-                    }
-                    catch { }
-                    Dispatcher.Invoke(() => UpdateStatus());
-                });
-            }
-        }
-        UpdateStatus();
     }
 
     public void LoadApps(string? customPath = null)
     {
-        if (!string.IsNullOrWhiteSpace(customPath))
-        {
-            _configFilePath = customPath;
-        }
-        else if (string.IsNullOrWhiteSpace(_configFilePath))
-        {
-            _configFilePath = ConfigService.GetActiveConfigPath();
-        }
-
-        string configPath = _configFilePath;
-        string rootDir = ConfigService.GetRootDir(configPath);
-
-        if (!File.Exists(configPath))
-        {
-            try
-            {
-                Directory.CreateDirectory(Path.Combine(rootDir, "Logs"));
-            }
-            catch { }
-            return;
-        }
-
-        try
-        {
-            var config = ConfigService.LoadConfigFile(configPath);
-            if (config != null)
-            {
-                if (!string.IsNullOrWhiteSpace(config.Hotkey))
-                {
-                    _configuredHotkey = config.Hotkey;
-                    if (IsLoaded) SetupHotkey();
-                }
-
-                var existingProcessMap = _apps
-                    .Where(a => a.Process != null && !a.Process.HasExited)
-                    .ToDictionary(a => a.Name, a => a.Process);
-
-                _apps.Clear();
-                foreach (var entry in config.Apps)
-                {
-                    string fullProjectPath = string.Empty;
-                    string fullExecPath = string.Empty;
-
-                    if (entry.Launch != null)
-                    {
-                        if (!string.IsNullOrEmpty(entry.Launch.ProjectPath))
-                        {
-                            fullProjectPath = Path.IsPathRooted(entry.Launch.ProjectPath)
-                                ? entry.Launch.ProjectPath
-                                : Path.GetFullPath(Path.Combine(rootDir, entry.Launch.ProjectPath));
-                        }
-
-                        if (!string.IsNullOrEmpty(entry.Launch.ExecutablePath))
-                        {
-                            fullExecPath = Path.IsPathRooted(entry.Launch.ExecutablePath)
-                                ? entry.Launch.ExecutablePath
-                                : Path.GetFullPath(Path.Combine(rootDir, entry.Launch.ExecutablePath));
-                        }
-                    }
-
-                    var appInfo = new AppInfo
-                    {
-                        Name = entry.Name,
-                        ProjectPath = fullProjectPath,
-                        ExecutablePath = fullExecPath,
-                        Arguments = entry.Launch?.Arguments ?? string.Empty,
-                        WorkingDirectory = entry.Launch?.WorkingDirectory ?? string.Empty,
-                        RunAsAdmin = entry.Launch?.RunAsAdmin ?? false
-                    };
-
-                    if (existingProcessMap.TryGetValue(entry.Name, out var runningProc))
-                    {
-                        appInfo.Process = runningProc;
-                    }
-
-                    if (entry.Icon != null)
-                    {
-                        appInfo.Color = entry.Icon.Color;
-                        appInfo.SecondaryColor = entry.Icon.SecondaryColor;
-                        appInfo.BackgroundType = entry.Icon.BackgroundType;
-                        appInfo.GradientDirection = entry.Icon.GradientDirection;
-                        appInfo.Label = entry.Icon.Label;
-                        appInfo.FaviconPath = entry.Icon.FaviconPath;
-                        appInfo.BootstrapIcon = entry.Icon.BootstrapIcon;
-                        appInfo.CustomGlyphSvg = entry.Icon.CustomGlyphSvg;
-                        appInfo.CustomGlyphColor = entry.Icon.CustomGlyphColor;
-                        appInfo.SvgOverride = entry.Icon.SvgOverride;
-
-                        if (!string.IsNullOrEmpty(entry.Icon.IconPath))
-                        {
-                            appInfo.IconPath = Path.IsPathRooted(entry.Icon.IconPath)
-                                ? entry.Icon.IconPath
-                                : Path.GetFullPath(Path.Combine(rootDir, entry.Icon.IconPath));
-                        }
-                    }
-
-                    if (string.IsNullOrEmpty(appInfo.IconPath))
-                    {
-                        string autoIconPath = Path.Combine(rootDir, "icons", entry.Name, $"{entry.Name}.png");
-                        if (File.Exists(autoIconPath))
-                        {
-                            appInfo.IconPath = autoIconPath;
-                        }
-                    }
-
-                    _apps.Add(appInfo);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            System.Windows.MessageBox.Show($"Error loading apps: {ex.Message}");
-        }
-
-        try
-        {
-            Directory.CreateDirectory(Path.Combine(rootDir, "Logs"));
-        }
-        catch { }
-
-        RefreshShortcutsAndFilter();
-        DetectRunningApps();
-    }
-
-    private bool FilterApps(object item)
-    {
-        if (item is not AppInfo app) return false;
-
-        string query = TxtSearch?.Text?.Trim() ?? string.Empty;
-        if (string.IsNullOrEmpty(query)) return true;
-
-        if (app.Name.Contains(query, StringComparison.OrdinalIgnoreCase)) return true;
-        if (app.Label.Contains(query, StringComparison.OrdinalIgnoreCase)) return true;
-        if (app.ShortLaunchTarget.Contains(query, StringComparison.OrdinalIgnoreCase)) return true;
-        if (app.LaunchTarget.Contains(query, StringComparison.OrdinalIgnoreCase)) return true;
-        if (app.LaunchTypeDescription.Contains(query, StringComparison.OrdinalIgnoreCase)) return true;
-        if (app.BootstrapIcon.Contains(query, StringComparison.OrdinalIgnoreCase)) return true;
-        if (app.IsRunningString.Contains(query, StringComparison.OrdinalIgnoreCase)) return true;
-
-        return false;
+        _viewModel.LoadApps(customPath);
     }
 
     private void TxtSearch_TextChanged(object sender, TextChangedEventArgs e)
     {
-        RefreshShortcutsAndFilter();
-    }
-
-    private void RefreshShortcutsAndFilter()
-    {
-        _appsView?.Refresh();
-
-        // Assign numbers 1..9 to the current visible items
-        int index = 1;
-        if (_appsView != null)
-        {
-            foreach (var item in _appsView)
-            {
-                if (item is AppInfo app)
-                {
-                    if (index <= 9)
-                    {
-                        app.ShortcutIndex = index.ToString();
-                        index++;
-                    }
-                    else
-                    {
-                        app.ShortcutIndex = string.Empty;
-                    }
-                }
-            }
-        }
-
-        UpdateStatus();
+        _viewModel.SearchText = TxtSearch.Text;
     }
 
     private void TxtSearch_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
@@ -423,10 +210,10 @@ public partial class MainWindow : FluentWindow
         }
         else if (e.Key == Key.Enter)
         {
-            var target = LstApps.SelectedItem as AppInfo ?? (_appsView?.Cast<AppInfo>().FirstOrDefault());
+            var target = LstApps.SelectedItem as AppInfo ?? (_viewModel.AppsView.Cast<AppInfo>().FirstOrDefault());
             if (target != null)
             {
-                ToggleApp(target);
+                _ = _viewModel.ToggleAppAsync(target);
                 e.Handled = true;
             }
         }
@@ -446,7 +233,6 @@ public partial class MainWindow : FluentWindow
 
     private void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        // Global escape hides to tray
         if (e.Key == Key.Escape)
         {
             if (!string.IsNullOrEmpty(TxtSearch.Text))
@@ -462,7 +248,6 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
-        // Ctrl+F -> focus search
         if (e.Key == Key.F && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
         {
             TxtSearch.Focus();
@@ -471,34 +256,53 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
-        // Ctrl+M -> manage apps
         if (e.Key == Key.M && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
         {
-            OpenAppManagement();
+            _viewModel.OpenAppManagement(this);
             e.Handled = true;
             return;
         }
 
-        // F5 -> reload
         if (e.Key == Key.F5)
         {
-            LoadApps();
+            _viewModel.LoadApps();
             e.Handled = true;
             return;
         }
 
-        // Ctrl+L -> view logs
         if (e.Key == Key.L && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
         {
             if (LstApps.SelectedItem is AppInfo selectedApp)
             {
-                OpenLogWindow(selectedApp);
+                _viewModel.OpenLogViewer(selectedApp, this);
                 e.Handled = true;
                 return;
             }
         }
 
-        // 1-9 shortcuts when not actively typing search or if Alt is pressed
+        if (LstApps.SelectedItem is AppInfo appToMove)
+        {
+            bool isAlt = (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt;
+            bool isCtrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+
+            if ((isAlt || isCtrl) && e.Key == Key.Up)
+            {
+                _viewModel.MoveAppUp(appToMove);
+                LstApps.SelectedItem = appToMove;
+                LstApps.ScrollIntoView(appToMove);
+                e.Handled = true;
+                return;
+            }
+            if ((isAlt || isCtrl) && e.Key == Key.Down)
+            {
+                _viewModel.MoveAppDown(appToMove);
+                LstApps.SelectedItem = appToMove;
+                LstApps.ScrollIntoView(appToMove);
+                e.Handled = true;
+                return;
+            }
+        }
+
         bool isAltPressed = (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt;
         bool isSearchFocused = TxtSearch.IsFocused;
 
@@ -516,41 +320,27 @@ public partial class MainWindow : FluentWindow
 
             if (digit >= 1 && digit <= 9)
             {
-                var targetApp = _appsView?.Cast<AppInfo>().FirstOrDefault(a => a.ShortcutIndex == digit.ToString());
+                var targetApp = _viewModel.AppsView.Cast<AppInfo>().FirstOrDefault(a => a.ShortcutIndex == digit.ToString());
                 if (targetApp != null)
                 {
                     LstApps.SelectedItem = targetApp;
-                    ToggleApp(targetApp);
+                    _ = _viewModel.ToggleAppAsync(targetApp);
                     e.Handled = true;
                     return;
                 }
             }
         }
 
-        // Space on selected item -> toggle
         if (e.Key == Key.Space && !isSearchFocused && LstApps.SelectedItem is AppInfo currentApp)
         {
-            ToggleApp(currentApp);
+            _ = _viewModel.ToggleAppAsync(currentApp);
             e.Handled = true;
             return;
         }
     }
 
-    private void ToggleApp(AppInfo app)
-    {
-        if (app.IsRunning)
-        {
-            StopApp(app);
-        }
-        else if (app.IsLaunchable)
-        {
-            StartApp(app);
-        }
-    }
-
     private void LstApps_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        UpdateStatus();
     }
 
     private void LstApps_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -559,11 +349,11 @@ public partial class MainWindow : FluentWindow
         {
             if (app.IsRunning)
             {
-                OpenLogWindow(app);
+                _viewModel.OpenLogViewer(app, this);
             }
             else if (app.IsLaunchable)
             {
-                StartApp(app);
+                _ = _viewModel.StartAppAsync(app);
             }
         }
     }
@@ -574,7 +364,7 @@ public partial class MainWindow : FluentWindow
         {
             if (!app.IsRunning && app.IsLaunchable)
             {
-                StartApp(app);
+                _ = _viewModel.StartAppAsync(app);
             }
         }
     }
@@ -585,7 +375,7 @@ public partial class MainWindow : FluentWindow
         {
             if (app.IsRunning)
             {
-                StopApp(app);
+                _ = _viewModel.StopAppAsync(app);
             }
         }
     }
@@ -594,7 +384,7 @@ public partial class MainWindow : FluentWindow
     {
         if (sender is System.Windows.FrameworkElement elem && elem.Tag is AppInfo app)
         {
-            OpenLogWindow(app);
+            _viewModel.OpenLogViewer(app, this);
         }
     }
 
@@ -602,7 +392,7 @@ public partial class MainWindow : FluentWindow
     {
         if (LstApps.SelectedItem is AppInfo app && !app.IsRunning)
         {
-            StartApp(app);
+            _ = _viewModel.StartAppAsync(app);
         }
     }
 
@@ -610,7 +400,7 @@ public partial class MainWindow : FluentWindow
     {
         if (LstApps.SelectedItem is AppInfo app && app.IsRunning)
         {
-            StopApp(app);
+            _ = _viewModel.StopAppAsync(app);
         }
     }
 
@@ -618,30 +408,133 @@ public partial class MainWindow : FluentWindow
     {
         if (LstApps.SelectedItem is AppInfo app)
         {
-            OpenLogWindow(app);
+            _viewModel.OpenLogViewer(app, this);
         }
+    }
+
+    private void CtxMenuMoveUp_Click(object sender, RoutedEventArgs e)
+    {
+        if (LstApps.SelectedItem is AppInfo app)
+        {
+            _viewModel.MoveAppUp(app);
+            LstApps.SelectedItem = app;
+            LstApps.ScrollIntoView(app);
+        }
+    }
+
+    private void CtxMenuMoveDown_Click(object sender, RoutedEventArgs e)
+    {
+        if (LstApps.SelectedItem is AppInfo app)
+        {
+            _viewModel.MoveAppDown(app);
+            LstApps.SelectedItem = app;
+            LstApps.ScrollIntoView(app);
+        }
+    }
+
+    public void MoveAppUp(AppInfo app)
+    {
+        _viewModel.MoveAppUp(app);
+    }
+
+    public void MoveAppDown(AppInfo app)
+    {
+        _viewModel.MoveAppDown(app);
+    }
+
+    private void LstApps_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _dragStartPoint = e.GetPosition(null);
+    }
+
+    private void LstApps_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (e.LeftButton == System.Windows.Input.MouseButtonState.Pressed && !_isDragging)
+        {
+            System.Windows.Point position = e.GetPosition(null);
+            if (Math.Abs(position.X - _dragStartPoint.X) > SystemParameters.MinimumHorizontalDragDistance ||
+                Math.Abs(position.Y - _dragStartPoint.Y) > SystemParameters.MinimumVerticalDragDistance)
+            {
+                if (LstApps.SelectedItem is AppInfo selectedApp)
+                {
+                    _isDragging = true;
+                    try
+                    {
+                        System.Windows.DragDrop.DoDragDrop(LstApps, selectedApp, System.Windows.DragDropEffects.Move);
+                    }
+                    finally
+                    {
+                        _isDragging = false;
+                    }
+                }
+            }
+        }
+    }
+
+    private void LstApps_DragOver(object sender, System.Windows.DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(typeof(AppInfo)))
+        {
+            e.Effects = System.Windows.DragDropEffects.Move;
+            e.Handled = true;
+        }
+        else
+        {
+            e.Effects = System.Windows.DragDropEffects.None;
+        }
+    }
+
+    private void LstApps_Drop(object sender, System.Windows.DragEventArgs e)
+    {
+        if (e.Data.GetData(typeof(AppInfo)) is AppInfo sourceApp)
+        {
+            int oldIndex = _viewModel.Apps.IndexOf(sourceApp);
+            if (oldIndex < 0) return;
+
+            var targetApp = GetAppInfoUnderMouse(e.GetPosition(LstApps));
+            int newIndex;
+            if (targetApp != null)
+            {
+                newIndex = _viewModel.Apps.IndexOf(targetApp);
+                if (newIndex < 0) newIndex = _viewModel.Apps.Count - 1;
+            }
+            else
+            {
+                newIndex = _viewModel.Apps.Count - 1;
+            }
+
+            if (oldIndex != newIndex)
+            {
+                _viewModel.MoveApp(oldIndex, newIndex);
+                LstApps.SelectedItem = sourceApp;
+                LstApps.ScrollIntoView(sourceApp);
+            }
+        }
+    }
+
+    private AppInfo? GetAppInfoUnderMouse(System.Windows.Point position)
+    {
+        HitTestResult hitResult = VisualTreeHelper.HitTest(LstApps, position);
+        if (hitResult?.VisualHit != null)
+        {
+            DependencyObject? current = hitResult.VisualHit;
+            while (current != null && current != LstApps)
+            {
+                if (current is ListBoxItem lbi && lbi.DataContext is AppInfo app)
+                {
+                    return app;
+                }
+                current = VisualTreeHelper.GetParent(current);
+            }
+        }
+        return null;
     }
 
     private void CtxMenuOpenFolder_Click(object sender, RoutedEventArgs e)
     {
-        if (LstApps.SelectedItem is AppInfo app && !string.IsNullOrEmpty(app.LaunchTarget))
+        if (LstApps.SelectedItem is AppInfo app)
         {
-            string target = app.LaunchTarget;
-            if (app.IsUrl)
-            {
-                Process.Start(new ProcessStartInfo { FileName = target, UseShellExecute = true });
-                return;
-            }
-
-            string? dir = Directory.Exists(target) ? target : Path.GetDirectoryName(target);
-            if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = dir,
-                    UseShellExecute = true
-                });
-            }
+            _viewModel.OpenFolder(app);
         }
     }
 
@@ -655,239 +548,26 @@ public partial class MainWindow : FluentWindow
 
     private void CtxMenuEdit_Click(object sender, RoutedEventArgs e)
     {
-        OpenAppManagement();
+        _viewModel.OpenAppManagement(this);
     }
 
     private void BtnRefresh_Click(object sender, RoutedEventArgs e)
     {
-        LoadApps();
+        _viewModel.LoadApps();
     }
 
     private void BtnManage_Click(object sender, RoutedEventArgs e)
     {
-        OpenAppManagement();
-    }
-
-    private void OpenAppManagement()
-    {
-        var manageWindow = new AppManagementWindow(_apps, _configuredHotkey, _configFilePath);
-        manageWindow.Owner = this;
-        manageWindow.ShowDialog();
-
-        if (!string.IsNullOrWhiteSpace(manageWindow.ConfiguredHotkey) && manageWindow.ConfiguredHotkey != _configuredHotkey)
-        {
-            _configuredHotkey = manageWindow.ConfiguredHotkey;
-            SetupHotkey();
-        }
-
-        if (!string.IsNullOrWhiteSpace(manageWindow.ConfigFilePath) && manageWindow.ConfigFilePath != _configFilePath)
-        {
-            _configFilePath = manageWindow.ConfigFilePath;
-        }
-
-        LoadApps(_configFilePath);
-        RefreshShortcutsAndFilter();
+        _viewModel.OpenAppManagement(this);
     }
 
     private void BtnStartAll_Click(object sender, RoutedEventArgs e)
     {
-        foreach (var app in _apps.Where(a => a.IsLaunchable && !a.IsRunning))
-        {
-            StartApp(app);
-        }
+        _ = _viewModel.StartAllAsync();
     }
 
     private void BtnStopAll_Click(object sender, RoutedEventArgs e)
     {
-        foreach (var app in _apps.Where(a => a.IsRunning))
-        {
-            StopApp(app);
-        }
-    }
-
-    private void OpenLogWindow(AppInfo app)
-    {
-        if (_logWindows.TryGetValue(app.Name, out var existingWindow))
-        {
-            if (existingWindow.IsLoaded)
-            {
-                existingWindow.Activate();
-                return;
-            }
-            _logWindows.Remove(app.Name);
-        }
-
-        var logWindow = new LogViewerWindow(app);
-        logWindow.Owner = this;
-        logWindow.Closing += (s, ev) => _logWindows.Remove(app.Name);
-        _logWindows[app.Name] = logWindow;
-        logWindow.Show();
-    }
-
-    private void StartApp(AppInfo app)
-    {
-        if (!app.IsLaunchable)
-        {
-            app.AddLog($"ERROR: No launch target defined for {app.Name}");
-            return;
-        }
-
-        Task.Run(() =>
-        {
-            try
-            {
-                string rootDir = ConfigService.GetRootDir(_configFilePath);
-
-                if (app.IsUrl)
-                {
-                    app.AddLog($"Opening URL: {app.LaunchTarget}");
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = app.LaunchTarget,
-                        UseShellExecute = true
-                    });
-                    return;
-                }
-
-                var process = new Process();
-                var startInfo = new ProcessStartInfo();
-
-                if (app.IsDotnetProject)
-                {
-                    startInfo.FileName = "dotnet";
-                    startInfo.Arguments = $"run --project \"{app.LaunchTarget}\"";
-                    if (!string.IsNullOrWhiteSpace(app.Arguments))
-                    {
-                        startInfo.Arguments += $" -- {app.Arguments}";
-                    }
-                    startInfo.UseShellExecute = false;
-                    startInfo.RedirectStandardOutput = true;
-                    startInfo.RedirectStandardError = true;
-                    startInfo.CreateNoWindow = true;
-
-                    if (!string.IsNullOrEmpty(app.WorkingDirectory))
-                    {
-                        string workDir = Path.IsPathRooted(app.WorkingDirectory) ? app.WorkingDirectory : Path.GetFullPath(Path.Combine(rootDir, app.WorkingDirectory));
-                        if (Directory.Exists(workDir)) startInfo.WorkingDirectory = workDir;
-                    }
-                }
-                else
-                {
-                    string target = app.LaunchTarget;
-                    string fullTarget = Path.IsPathRooted(target) ? target : Path.GetFullPath(Path.Combine(rootDir, target));
-                    
-                    startInfo.FileName = File.Exists(fullTarget) ? fullTarget : target;
-                    
-                    if (!string.IsNullOrWhiteSpace(app.Arguments))
-                    {
-                        startInfo.Arguments = app.Arguments;
-                    }
-
-                    if (!string.IsNullOrEmpty(app.WorkingDirectory))
-                    {
-                        string workDir = Path.IsPathRooted(app.WorkingDirectory) ? app.WorkingDirectory : Path.GetFullPath(Path.Combine(rootDir, app.WorkingDirectory));
-                        if (Directory.Exists(workDir)) startInfo.WorkingDirectory = workDir;
-                    }
-                    else if (File.Exists(fullTarget))
-                    {
-                        startInfo.WorkingDirectory = Path.GetDirectoryName(fullTarget) ?? "";
-                    }
-
-                    if (app.RunAsAdmin)
-                    {
-                        startInfo.Verb = "runas";
-                        startInfo.UseShellExecute = true;
-                    }
-                    else
-                    {
-                        // Check if it's a script / CLI or GUI app
-                        bool isScriptOrCli = target.EndsWith(".bat", StringComparison.OrdinalIgnoreCase) ||
-                                             target.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) ||
-                                             target.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase);
-
-                        if (isScriptOrCli)
-                        {
-                            startInfo.UseShellExecute = false;
-                            startInfo.RedirectStandardOutput = true;
-                            startInfo.RedirectStandardError = true;
-                            startInfo.CreateNoWindow = true;
-                        }
-                        else
-                        {
-                            startInfo.UseShellExecute = true;
-                        }
-                    }
-                }
-
-                if (!startInfo.UseShellExecute)
-                {
-                    process.OutputDataReceived += (s, e) => { if (e.Data != null) app.AddLog(e.Data); };
-                    process.ErrorDataReceived += (s, e) => { if (e.Data != null) app.AddLog(e.Data); };
-                }
-
-                process.StartInfo = startInfo;
-                process.EnableRaisingEvents = true;
-                process.Exited += (s, e) =>
-                {
-                    Dispatcher.Invoke(() =>
-                    {
-                        app.Process = null;
-                        UpdateStatus();
-                    });
-                };
-
-                process.Start();
-                app.Process = process;
-
-                if (!startInfo.UseShellExecute)
-                {
-                    process.BeginOutputReadLine();
-                    process.BeginErrorReadLine();
-                }
-
-                Dispatcher.Invoke(() => UpdateStatus());
-                app.AddLog($"Started {app.Name} (PID: {process.Id})");
-
-                process.WaitForExit();
-            }
-            catch (Exception ex)
-            {
-                app.AddLog($"ERROR starting {app.Name}: {ex.Message}");
-            }
-            finally
-            {
-                app.Process = null;
-                Dispatcher.Invoke(() => UpdateStatus());
-            }
-        });
-    }
-
-    private void UpdateStatus()
-    {
-        int runningCount = _apps.Count(a => a.IsRunning);
-        int totalAppsCount = _apps.Count(a => a.IsLaunchable);
-        LblStatus.Text = $"{runningCount} running • {totalAppsCount} total";
-        StatusDot.Fill = runningCount > 0 
-            ? new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#4ADE80"))
-            : new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#94A3B8"));
-
-        BtnStartAll.IsEnabled = _apps.Any(a => a.IsLaunchable && !a.IsRunning);
-        BtnStopAll.IsEnabled = runningCount > 0;
-    }
-
-    private void StopApp(AppInfo app)
-    {
-        try
-        {
-            if (app.Process != null && !app.Process.HasExited)
-            {
-                app.Process.Kill(entireProcessTree: true);
-                app.AddLog($"Stopped {app.Name}");
-            }
-        }
-        catch (Exception ex)
-        {
-            app.AddLog($"ERROR stopping {app.Name}: {ex.Message}");
-        }
+        _ = _viewModel.StopAllAsync();
     }
 }

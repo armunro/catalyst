@@ -18,6 +18,8 @@
         <root:InverseBooleanConverter x:Key="InverseBool"/>
         <root:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVis"/>
         <root:StringNullOrEmptyToVisibilityConverter x:Key="StringNullOrEmptyToVis"/>
+        <root:NotNullToVisibilityConverter x:Key="NotNullToVis"/>
+        <root:NullToVisibilityConverter x:Key="NullToVis"/>
 
         <Style x:Key="ManageAppListItemStyle" TargetType="ListBoxItem">
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
@@ -85,6 +87,25 @@
                                        Appearance="Danger"
                                        Grid.Column="1" Margin="3,0,0,0"
                                        Click="BtnRemove_Click"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <ui:Button Name="BtnMoveUp" Content="Move Up"
+                                       Icon="{ui:SymbolIcon ArrowUp20}"
+                                       Appearance="Secondary"
+                                       Grid.Column="0" Margin="0,0,3,0"
+                                       ToolTip="Move selected app up (Alt+Up / Ctrl+Up)"
+                                       Click="BtnMoveUp_Click"/>
+                            <ui:Button Name="BtnMoveDown" Content="Move Down"
+                                       Icon="{ui:SymbolIcon ArrowDown20}"
+                                       Appearance="Secondary"
+                                       Grid.Column="1" Margin="3,0,0,0"
+                                       ToolTip="Move selected app down (Alt+Down / Ctrl+Down)"
+                                       Click="BtnMoveDown_Click"/>
                         </Grid>
 
                         <ui:Button Name="BtnSave" Content="Save Configuration"
@@ -158,6 +179,12 @@
                              BorderThickness="0"
                              ItemContainerStyle="{StaticResource ManageAppListItemStyle}"
                              SelectionChanged="LstApps_SelectionChanged"
+                             PreviewKeyDown="LstApps_PreviewKeyDown"
+                             PreviewMouseLeftButtonDown="LstApps_PreviewMouseLeftButtonDown"
+                             MouseMove="LstApps_MouseMove"
+                             DragOver="LstApps_DragOver"
+                             Drop="LstApps_Drop"
+                             AllowDrop="True"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
@@ -166,13 +193,28 @@
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <Border Width="28" Height="28" CornerRadius="5" Margin="0,0,8,0" VerticalAlignment="Center">
-                                        <Image Source="{Binding IconSource32}" Stretch="Uniform" Width="24" Height="24"
-                                               RenderOptions.BitmapScalingMode="HighQuality"
-                                               RenderOptions.EdgeMode="Unspecified"/>
+                                    <Border Width="28" Height="28" CornerRadius="5" Margin="0,0,8,0" Background="{Binding ColorBrush}" ClipToBounds="True" VerticalAlignment="Center">
+                                        <Grid>
+                                            <Image Source="{Binding IconSource32}" Stretch="Uniform" Width="24" Height="24"
+                                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                                   RenderOptions.EdgeMode="Unspecified"
+                                                   Visibility="{Binding IconSource32, Converter={StaticResource NotNullToVis}}"/>
+                                            <TextBlock Text="{Binding Label}"
+                                                       FontWeight="Bold"
+                                                       FontSize="11"
+                                                       Foreground="#FFFFFF"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Visibility="{Binding IconSource32, Converter={StaticResource NullToVis}}"/>
+                                        </Grid>
                                     </Border>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" Foreground="#F8FAFC" TextTrimming="CharacterEllipsis"/>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" Foreground="#F8FAFC" TextTrimming="CharacterEllipsis"/>
+                                            <Border Visibility="{Binding IsHidden, Converter={StaticResource BoolToVis}}" Background="#30F59E0B" CornerRadius="3" Padding="4,1" Margin="6,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock Text="Hidden" FontSize="9" FontWeight="SemiBold" Foreground="#F59E0B"/>
+                                            </Border>
+                                        </StackPanel>
                                         <TextBlock Text="{Binding LaunchTypeDescription}" FontSize="10" Foreground="#94A3B8" TextTrimming="CharacterEllipsis"/>
                                     </StackPanel>
                                 </Grid>
@@ -249,6 +291,10 @@
 
                                 <CheckBox Name="ChkRunAsAdmin" Content="Run as Administrator"
                                           Foreground="#CBD5E1" FontSize="12"
+                                          Checked="Config_CheckChanged" Unchecked="Config_CheckChanged"/>
+
+                                <CheckBox Name="ChkIsHidden" Content="Hide from Main Window (Visible in App Manager only)"
+                                          Foreground="#CBD5E1" FontSize="12" Margin="0,6,0,0"
                                           Checked="Config_CheckChanged" Unchecked="Config_CheckChanged"/>
                             </StackPanel>
                         </Border>
