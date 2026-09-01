@@ -582,13 +582,13 @@
                                                            Click="BtnExportCatalyst_Click"/>
                                             </Grid>
 
-                                            <TextBlock Text=".catalyst Directory Location (Optional - defaults to project folder\.catalyst)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
+                                            <TextBlock Text=".catalyst Directory Location (Optional - defaults to .catalyst in project directory)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
                                             <Grid Margin="0,0,0,8">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
-                                                <ui:TextBox Name="TxtCatalystDirectory" PlaceholderText="FlightPlan\.catalyst"
+                                                <ui:TextBox Name="TxtCatalystDirectory" PlaceholderText=".catalyst"
                                                             TextChanged="Config_TextChanged" Margin="0,0,4,0"/>
                                                 <ui:Button Name="BtnBrowseCatalystDir" Grid.Column="1" Content="..."
                                                            Appearance="Secondary" Padding="8,4"
@@ -617,13 +617,13 @@
                                                            Click="BtnUpdateCurrentFavicon_Click"/>
                                             </Grid>
 
-                                            <TextBlock Text="Project Favicon Path (Optional - .ico, .png, or .svg)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
+                                            <TextBlock Text="Project Favicon Path (Optional - defaults to relative project path e.g. wwwroot\favicon.ico)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
                                             <Grid Margin="0,0,0,8">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
-                                                <ui:TextBox Name="TxtFaviconPath" PlaceholderText="FlightPlan\wwwroot\favicon.ico"
+                                                <ui:TextBox Name="TxtFaviconPath" PlaceholderText="wwwroot\favicon.ico"
                                                             TextChanged="Config_TextChanged" Margin="0,0,4,0"/>
                                                 <ui:Button Name="BtnBrowseFavicon" Grid.Column="1" Content="..."
                                                            Appearance="Secondary" Padding="8,4"

@@ -137,10 +137,11 @@ public class IconManagementService : IIconManagementService
 
         string rootDir = _configurationService.RootDir;
         string iconsBaseDir = _configurationService.IconsBaseDir;
+        string? projectDir = AppConfigurationService.GetProjectDirectory(app.ProjectPath, app.WorkingDirectory, rootDir);
 
         string fullFaviconPath = Path.IsPathRooted(app.FaviconPath)
             ? app.FaviconPath
-            : Path.GetFullPath(Path.Combine(rootDir, app.FaviconPath));
+            : Path.GetFullPath(Path.Combine(!string.IsNullOrEmpty(projectDir) ? projectDir : rootDir, app.FaviconPath));
 
         string generatedIcoPath = Path.Combine(iconsBaseDir, app.Name, "favicon.ico");
         string generatedPngPath = Path.Combine(iconsBaseDir, app.Name, "favicon-32x32.png");
@@ -237,6 +238,7 @@ public class IconManagementService : IIconManagementService
     {
         string rootDir = _configurationService.RootDir;
         string iconsBaseDir = _configurationService.IconsBaseDir;
+        string? projectDir = AppConfigurationService.GetProjectDirectory(app.ProjectPath, app.WorkingDirectory, rootDir);
 
         // Determine destination directory
         string destDir;
@@ -244,43 +246,17 @@ public class IconManagementService : IIconManagementService
         {
             destDir = Path.IsPathRooted(targetDirectory)
                 ? targetDirectory
-                : Path.GetFullPath(Path.Combine(rootDir, targetDirectory));
+                : Path.GetFullPath(Path.Combine(!string.IsNullOrEmpty(projectDir) ? projectDir : rootDir, targetDirectory));
         }
         else if (!string.IsNullOrWhiteSpace(app.CatalystDirectory))
         {
             destDir = Path.IsPathRooted(app.CatalystDirectory)
                 ? app.CatalystDirectory
-                : Path.GetFullPath(Path.Combine(rootDir, app.CatalystDirectory));
+                : Path.GetFullPath(Path.Combine(!string.IsNullOrEmpty(projectDir) ? projectDir : rootDir, app.CatalystDirectory));
         }
-        else if (!string.IsNullOrWhiteSpace(app.ProjectPath))
+        else if (!string.IsNullOrWhiteSpace(projectDir))
         {
-            string fullProj = Path.IsPathRooted(app.ProjectPath)
-                ? app.ProjectPath
-                : Path.GetFullPath(Path.Combine(rootDir, app.ProjectPath));
-
-            if (File.Exists(fullProj) ||
-                fullProj.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
-                fullProj.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) ||
-                fullProj.EndsWith(".fsproj", StringComparison.OrdinalIgnoreCase) ||
-                fullProj.EndsWith(".vbproj", StringComparison.OrdinalIgnoreCase) ||
-                fullProj.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
-                fullProj.EndsWith(".bat", StringComparison.OrdinalIgnoreCase) ||
-                fullProj.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) ||
-                fullProj.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase))
-            {
-                destDir = Path.Combine(Path.GetDirectoryName(fullProj) ?? rootDir, ".catalyst");
-            }
-            else
-            {
-                destDir = Path.Combine(fullProj, ".catalyst");
-            }
-        }
-        else if (!string.IsNullOrWhiteSpace(app.WorkingDirectory))
-        {
-            string fullWork = Path.IsPathRooted(app.WorkingDirectory)
-                ? app.WorkingDirectory
-                : Path.GetFullPath(Path.Combine(rootDir, app.WorkingDirectory));
-            destDir = Path.Combine(fullWork, ".catalyst");
+            destDir = Path.Combine(projectDir, ".catalyst");
         }
         else
         {
@@ -313,7 +289,13 @@ public class IconManagementService : IIconManagementService
             {
                 string src = Path.IsPathRooted(app.CustomGlyphSvg)
                     ? app.CustomGlyphSvg
-                    : Path.GetFullPath(Path.Combine(rootDir, app.CustomGlyphSvg));
+                    : Path.GetFullPath(Path.Combine(!string.IsNullOrEmpty(projectDir) ? projectDir : rootDir, app.CustomGlyphSvg));
+
+                if (!File.Exists(src) && !string.IsNullOrEmpty(projectDir))
+                {
+                    string rootSrc = Path.GetFullPath(Path.Combine(rootDir, app.CustomGlyphSvg));
+                    if (File.Exists(rootSrc)) src = rootSrc;
+                }
 
                 if (File.Exists(src))
                 {
@@ -342,7 +324,13 @@ public class IconManagementService : IIconManagementService
             {
                 string src = Path.IsPathRooted(app.SvgOverride)
                     ? app.SvgOverride
-                    : Path.GetFullPath(Path.Combine(rootDir, app.SvgOverride));
+                    : Path.GetFullPath(Path.Combine(!string.IsNullOrEmpty(projectDir) ? projectDir : rootDir, app.SvgOverride));
+
+                if (!File.Exists(src) && !string.IsNullOrEmpty(projectDir))
+                {
+                    string rootSrc = Path.GetFullPath(Path.Combine(rootDir, app.SvgOverride));
+                    if (File.Exists(rootSrc)) src = rootSrc;
+                }
 
                 if (File.Exists(src))
                 {
@@ -363,7 +351,13 @@ public class IconManagementService : IIconManagementService
         {
             string src = Path.IsPathRooted(app.IconPath)
                 ? app.IconPath
-                : Path.GetFullPath(Path.Combine(rootDir, app.IconPath));
+                : Path.GetFullPath(Path.Combine(!string.IsNullOrEmpty(projectDir) ? projectDir : rootDir, app.IconPath));
+
+            if (!File.Exists(src) && !string.IsNullOrEmpty(projectDir))
+            {
+                string rootSrc = Path.GetFullPath(Path.Combine(rootDir, app.IconPath));
+                if (File.Exists(rootSrc)) src = rootSrc;
+            }
 
             if (File.Exists(src) &&
                 !src.StartsWith(iconsBaseDir, StringComparison.OrdinalIgnoreCase) &&
@@ -377,14 +371,14 @@ public class IconManagementService : IIconManagementService
         }
 
         // 2. Package Configuration into catalystApp.yaml
-        string projectDir = Path.GetDirectoryName(destDir) ?? rootDir;
+        string exportProjectDir = Path.GetDirectoryName(destDir) ?? (!string.IsNullOrEmpty(projectDir) ? projectDir : rootDir);
         string relProjectPath = app.ProjectPath;
         if (!string.IsNullOrEmpty(relProjectPath))
         {
             string fullProj = Path.IsPathRooted(relProjectPath) ? relProjectPath : Path.GetFullPath(Path.Combine(rootDir, relProjectPath));
-            if (fullProj.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            if (fullProj.StartsWith(exportProjectDir, StringComparison.OrdinalIgnoreCase))
             {
-                relProjectPath = Path.GetRelativePath(projectDir, fullProj);
+                relProjectPath = Path.GetRelativePath(exportProjectDir, fullProj);
             }
         }
 
@@ -392,9 +386,9 @@ public class IconManagementService : IIconManagementService
         if (!string.IsNullOrEmpty(relExecPath) && !relExecPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && !relExecPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             string fullExec = Path.IsPathRooted(relExecPath) ? relExecPath : Path.GetFullPath(Path.Combine(rootDir, relExecPath));
-            if (fullExec.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            if (fullExec.StartsWith(exportProjectDir, StringComparison.OrdinalIgnoreCase))
             {
-                relExecPath = Path.GetRelativePath(projectDir, fullExec);
+                relExecPath = Path.GetRelativePath(exportProjectDir, fullExec);
             }
         }
 
@@ -402,19 +396,19 @@ public class IconManagementService : IIconManagementService
         if (!string.IsNullOrEmpty(relWorkDir))
         {
             string fullWork = Path.IsPathRooted(relWorkDir) ? relWorkDir : Path.GetFullPath(Path.Combine(rootDir, relWorkDir));
-            if (fullWork.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            if (fullWork.StartsWith(exportProjectDir, StringComparison.OrdinalIgnoreCase))
             {
-                relWorkDir = Path.GetRelativePath(projectDir, fullWork);
+                relWorkDir = Path.GetRelativePath(exportProjectDir, fullWork);
             }
         }
 
         string relFaviconPath = app.FaviconPath;
         if (!string.IsNullOrEmpty(relFaviconPath))
         {
-            string fullFav = Path.IsPathRooted(relFaviconPath) ? relFaviconPath : Path.GetFullPath(Path.Combine(rootDir, relFaviconPath));
-            if (fullFav.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            string fullFav = Path.IsPathRooted(relFaviconPath) ? relFaviconPath : Path.GetFullPath(Path.Combine(!string.IsNullOrEmpty(projectDir) ? projectDir : rootDir, relFaviconPath));
+            if (fullFav.StartsWith(exportProjectDir, StringComparison.OrdinalIgnoreCase))
             {
-                relFaviconPath = Path.GetRelativePath(projectDir, fullFav);
+                relFaviconPath = Path.GetRelativePath(exportProjectDir, fullFav);
             }
         }
 
@@ -457,7 +451,11 @@ public class IconManagementService : IIconManagementService
         // Update app's CatalystDirectory property if not already set
         if (string.IsNullOrWhiteSpace(app.CatalystDirectory))
         {
-            if (destDir.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(projectDir) && destDir.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            {
+                app.CatalystDirectory = Path.GetRelativePath(projectDir, destDir);
+            }
+            else if (destDir.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
             {
                 app.CatalystDirectory = Path.GetRelativePath(rootDir, destDir);
             }

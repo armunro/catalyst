@@ -131,12 +131,14 @@ public class SkiaIconRenderer : IIconRenderer
 
     private void RenderToCanvas(SKCanvas canvas, AppInfo app, int size, string iconsBaseDir, string? rootDir = null, Action<string>? logger = null)
     {
+        string? projectDir = Catalyst.Core.Services.AppConfigurationService.GetProjectDirectory(app.ProjectPath, app.WorkingDirectory, rootDir);
+
         // CASE 1: Complete SVG Override
         if (!string.IsNullOrWhiteSpace(app.SvgOverride))
         {
             try
             {
-                var svg = LoadSvgContent(app.SvgOverride, rootDir);
+                var svg = LoadSvgContent(app.SvgOverride, projectDir, rootDir);
                 if (svg?.Picture != null)
                 {
                     DrawScaledPicture(canvas, svg.Picture, 0, 0, size, size, null);
@@ -163,7 +165,7 @@ public class SkiaIconRenderer : IIconRenderer
                     glyphColor = parsedGlyphColor;
                 }
 
-                var svg = LoadSvgContent(app.CustomGlyphSvg, rootDir, glyphColor);
+                var svg = LoadSvgContent(app.CustomGlyphSvg, projectDir, rootDir, glyphColor);
                 if (svg?.Picture != null)
                 {
                     float padding = size * 0.16f;
@@ -386,7 +388,7 @@ public class SkiaIconRenderer : IIconRenderer
         canvas.DrawText(text, textX, textY, textPaint);
     }
 
-    private SKSvg? LoadSvgContent(string input, string? rootDir, SKColor? tintColor = null)
+    private SKSvg? LoadSvgContent(string input, string? projectDir, string? rootDir, SKColor? tintColor = null)
     {
         if (string.IsNullOrWhiteSpace(input)) return null;
 
@@ -397,7 +399,16 @@ public class SkiaIconRenderer : IIconRenderer
         {
             resolvedFilePath = trimmed;
         }
-        else if (!string.IsNullOrEmpty(rootDir))
+        else if (!string.IsNullOrEmpty(projectDir))
+        {
+            string combined = Path.IsPathRooted(trimmed) ? trimmed : Path.GetFullPath(Path.Combine(projectDir, trimmed));
+            if (File.Exists(combined))
+            {
+                resolvedFilePath = combined;
+            }
+        }
+
+        if (resolvedFilePath == null && !string.IsNullOrEmpty(rootDir))
         {
             string combined = Path.IsPathRooted(trimmed) ? trimmed : Path.GetFullPath(Path.Combine(rootDir, trimmed));
             if (File.Exists(combined))

@@ -2492,6 +2492,243 @@ apps:
         }
     }
 
+    [Fact]
+    public void PathsAndDefaults_AreRelativeToProjectFileParentDirectory()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "RelativePathsTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            string projDir = Path.Combine(tempDir, "FlightPlan");
+            Directory.CreateDirectory(projDir);
+            string csprojPath = Path.Combine(projDir, "FlightPlan.csproj");
+            File.WriteAllText(csprojPath, "<Project Sdk=\"Microsoft.NET.Sdk\"/>");
+
+            string iconsDir = Path.Combine(projDir, "icons");
+            Directory.CreateDirectory(iconsDir);
+            string customGlyphPath = Path.Combine(iconsDir, "custom-glyph.svg");
+            File.WriteAllText(customGlyphPath, "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 10 10\"><circle cx=\"5\" cy=\"5\" r=\"5\"/></svg>");
+            string svgOverridePath = Path.Combine(iconsDir, "full-icon.svg");
+            File.WriteAllText(svgOverridePath, "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 10 10\"><rect width=\"10\" height=\"10\"/></svg>");
+
+            string wwwrootDir = Path.Combine(projDir, "wwwroot");
+            Directory.CreateDirectory(wwwrootDir);
+            string faviconPath = Path.Combine(wwwrootDir, "favicon.ico");
+            File.WriteAllText(faviconPath, "fake-ico");
+
+            string catalystDir = Path.Combine(projDir, ".catalyst");
+            Directory.CreateDirectory(catalystDir);
+
+            var configRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var settings = new Catalyst.Adapters.Persistence.JsonSettingsStorage(Path.Combine(tempDir, "settings.json"));
+            var pathResolver = new Catalyst.Adapters.Persistence.PathResolver(settings);
+            string configPath = Path.Combine(tempDir, "apps.yaml");
+            pathResolver.CustomConfigPath = configPath;
+            var configService = new Catalyst.Core.Services.AppConfigurationService(configRepo, settings, pathResolver);
+
+            var app = new AppInfo
+            {
+                Name = "FlightPlan",
+                Color = "#1E88E4",
+                Label = "FP",
+                ProjectPath = csprojPath,
+                CustomGlyphSvg = customGlyphPath,
+                SvgOverride = svgOverridePath,
+                FaviconPath = faviconPath,
+                CatalystDirectory = catalystDir
+            };
+
+            var entry = configService.ConvertToConfigEntry(app, tempDir);
+
+            // Verify serialized config entry paths are relative to the project directory
+            Assert.Equal(@"icons\custom-glyph.svg", entry.Icon.CustomGlyphSvg.Replace('/', '\\'));
+            Assert.Equal(@"icons\full-icon.svg", entry.Icon.SvgOverride.Replace('/', '\\'));
+            Assert.Equal(@"wwwroot\favicon.ico", entry.Icon.FaviconPath.Replace('/', '\\'));
+            Assert.Equal(".catalyst", entry.CatalystDirectory);
+
+            // Verify converting back to AppInfo resolves them back to full paths in project directory
+            var loadedApp = configService.ConvertToAppInfo(entry, tempDir, Path.Combine(tempDir, "global-icons"));
+            Assert.Equal(customGlyphPath, loadedApp.CustomGlyphSvg);
+            Assert.Equal(svgOverridePath, loadedApp.SvgOverride);
+            Assert.Equal(faviconPath, loadedApp.FaviconPath);
+            Assert.Equal(catalystDir, loadedApp.CatalystDirectory);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void FaviconPath_DefaultDiscovery_DiscoversRelativeToProjectDirectory()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "FaviconDefaultTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            string projDir = Path.Combine(tempDir, "Warpdeck");
+            Directory.CreateDirectory(projDir);
+            string csprojPath = Path.Combine(projDir, "Warpdeck.csproj");
+            File.WriteAllText(csprojPath, "<Project Sdk=\"Microsoft.NET.Sdk\"/>");
+
+            string wwwrootDir = Path.Combine(projDir, "wwwroot");
+            Directory.CreateDirectory(wwwrootDir);
+            string defaultFaviconPath = Path.Combine(wwwrootDir, "favicon.ico");
+            File.WriteAllText(defaultFaviconPath, "fake-favicon-content");
+
+            var configRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var settings = new Catalyst.Adapters.Persistence.JsonSettingsStorage(Path.Combine(tempDir, "settings.json"));
+            var pathResolver = new Catalyst.Adapters.Persistence.PathResolver(settings);
+            var configService = new Catalyst.Core.Services.AppConfigurationService(configRepo, settings, pathResolver);
+
+            var entry = new AppConfigEntry
+            {
+                Name = "Warpdeck",
+                Launch = new LaunchConfig { ProjectPath = csprojPath },
+                Icon = new IconConfig { Color = "#2196F3" }
+            };
+
+            var appInfo = configService.ConvertToAppInfo(entry, tempDir, Path.Combine(tempDir, "icons"));
+
+            // Should discover the favicon in project directory
+            Assert.Equal(defaultFaviconPath, appInfo.FaviconPath);
+
+            // When converted back to config entry, should be serialized relative to project directory
+            var serializedEntry = configService.ConvertToConfigEntry(appInfo, tempDir);
+            Assert.Equal(@"wwwroot\favicon.ico", serializedEntry.Icon.FaviconPath.Replace('/', '\\'));
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void ExportCatalystFolder_DefaultsCatalystDirectoryRelativeToProjectParent()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystDefaultExportTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            string projDir = Path.Combine(tempDir, "MyApp");
+            Directory.CreateDirectory(projDir);
+            string csprojPath = Path.Combine(projDir, "MyApp.csproj");
+            File.WriteAllText(csprojPath, "<Project Sdk=\"Microsoft.NET.Sdk\"/>");
+
+            var configRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var settings = new Catalyst.Adapters.Persistence.JsonSettingsStorage(Path.Combine(tempDir, "settings.json"));
+            var pathResolver = new Catalyst.Adapters.Persistence.PathResolver(settings);
+            var configService = new Catalyst.Core.Services.AppConfigurationService(configRepo, settings, pathResolver);
+            var iconRenderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+            var iconService = new Catalyst.Core.Services.IconManagementService(iconRenderer, configService);
+
+            var app = new AppInfo
+            {
+                Name = "MyApp",
+                Color = "#336699",
+                Label = "MA",
+                ProjectPath = csprojPath,
+                CatalystDirectory = "" // Empty default
+            };
+
+            string exportedDir = iconService.ExportCatalystFolder(app);
+
+            Assert.Equal(Path.Combine(projDir, ".catalyst"), exportedDir);
+            Assert.Equal(".catalyst", app.CatalystDirectory);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void UpdateProjectFavicon_ResolvesRelativeFaviconPathAgainstProjectParent()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "FaviconUpdateRelativeTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            string projDir = Path.Combine(tempDir, "MyWebProject");
+            Directory.CreateDirectory(projDir);
+            string csprojPath = Path.Combine(projDir, "MyWebProject.csproj");
+            File.WriteAllText(csprojPath, "<Project Sdk=\"Microsoft.NET.Sdk.Web\">\n  <PropertyGroup>\n    <TargetFramework>net9.0</TargetFramework>\n  </PropertyGroup>\n</Project>");
+
+            var configRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var settings = new Catalyst.Adapters.Persistence.JsonSettingsStorage(Path.Combine(tempDir, "settings.json"));
+            var pathResolver = new Catalyst.Adapters.Persistence.PathResolver(settings);
+            string configPath = Path.Combine(tempDir, "apps.yaml");
+            pathResolver.CustomConfigPath = configPath;
+            var configService = new Catalyst.Core.Services.AppConfigurationService(configRepo, settings, pathResolver);
+
+            var iconRenderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+            var iconService = new Catalyst.Core.Services.IconManagementService(iconRenderer, configService);
+
+            var app = new AppInfo
+            {
+                Name = "MyWebProject",
+                Color = "#4CAF50",
+                Label = "WP",
+                ProjectPath = csprojPath,
+                FaviconPath = @"wwwroot\favicon.ico" // Relative to project parent!
+            };
+
+            bool updated = iconService.UpdateProjectFavicon(app);
+            Assert.True(updated);
+
+            string expectedFaviconPath = Path.Combine(projDir, "wwwroot", "favicon.ico");
+            Assert.True(File.Exists(expectedFaviconPath));
+            Assert.True(new FileInfo(expectedFaviconPath).Length > 0);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void SkiaIconRenderer_LoadsSvgInputsRelativeToProjectParent()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "SkiaRelativeSvgTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            string projDir = Path.Combine(tempDir, "SvgProj");
+            Directory.CreateDirectory(projDir);
+            string csprojPath = Path.Combine(projDir, "SvgProj.csproj");
+            File.WriteAllText(csprojPath, "<Project Sdk=\"Microsoft.NET.Sdk\"/>");
+
+            string iconsDir = Path.Combine(projDir, "assets");
+            Directory.CreateDirectory(iconsDir);
+            string customGlyphPath = Path.Combine(iconsDir, "glyph.svg");
+            File.WriteAllText(customGlyphPath, "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"white\"/></svg>");
+
+            var iconRenderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+
+            var app = new AppInfo
+            {
+                Name = "SvgProj",
+                Color = "#222222",
+                ProjectPath = csprojPath,
+                CustomGlyphSvg = @"assets\glyph.svg" // Relative to project parent
+            };
+
+            using var bmp = iconRenderer.RenderIconBitmap(app, 64, Path.Combine(tempDir, "global-icons"), tempDir);
+            Assert.NotNull(bmp);
+            Assert.Equal(64, bmp.Width);
+            Assert.Equal(64, bmp.Height);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
     private class MockWindowService : Catalyst.Adapters.UI.Navigation.IWindowService
     {
         private readonly Action _onShowSettings;

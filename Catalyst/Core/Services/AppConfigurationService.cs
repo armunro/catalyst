@@ -154,6 +154,49 @@ public class AppConfigurationService : IAppConfigurationService
         return configFile;
     }
 
+    public static string? GetProjectDirectory(string? projectPath, string? workingDirectory, string? rootDir)
+    {
+        if (!string.IsNullOrWhiteSpace(projectPath))
+        {
+            string fullProj = Path.IsPathRooted(projectPath)
+                ? projectPath
+                : (!string.IsNullOrEmpty(rootDir) ? Path.GetFullPath(Path.Combine(rootDir, projectPath)) : projectPath);
+
+            if (File.Exists(fullProj) ||
+                fullProj.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
+                fullProj.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) ||
+                fullProj.EndsWith(".fsproj", StringComparison.OrdinalIgnoreCase) ||
+                fullProj.EndsWith(".vbproj", StringComparison.OrdinalIgnoreCase) ||
+                fullProj.EndsWith(".vcxproj", StringComparison.OrdinalIgnoreCase) ||
+                fullProj.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+                fullProj.EndsWith(".bat", StringComparison.OrdinalIgnoreCase) ||
+                fullProj.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) ||
+                fullProj.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase) ||
+                !string.IsNullOrEmpty(Path.GetExtension(fullProj)))
+            {
+                return Path.GetDirectoryName(fullProj);
+            }
+            else if (Directory.Exists(fullProj))
+            {
+                return fullProj;
+            }
+            else
+            {
+                string? dir = Path.GetDirectoryName(fullProj);
+                return !string.IsNullOrEmpty(dir) && Path.HasExtension(fullProj) ? dir : fullProj;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(workingDirectory))
+        {
+            return Path.IsPathRooted(workingDirectory)
+                ? workingDirectory
+                : (!string.IsNullOrEmpty(rootDir) ? Path.GetFullPath(Path.Combine(rootDir, workingDirectory)) : workingDirectory);
+        }
+
+        return null;
+    }
+
     public AppInfo ConvertToAppInfo(AppConfigEntry entry, string rootDir, string iconsDir)
     {
         string projectPath = entry.Launch?.ProjectPath ?? string.Empty;
@@ -174,6 +217,8 @@ public class AppConfigurationService : IAppConfigurationService
             workingDir = Path.GetFullPath(Path.Combine(rootDir, workingDir));
         }
 
+        string? projectDir = GetProjectDirectory(projectPath, workingDir, rootDir);
+
         string iconPath = entry.Icon?.IconPath ?? string.Empty;
         if (!string.IsNullOrEmpty(iconPath) && !Path.IsPathRooted(iconPath))
         {
@@ -183,27 +228,97 @@ public class AppConfigurationService : IAppConfigurationService
         string faviconPath = entry.Icon?.FaviconPath ?? string.Empty;
         if (!string.IsNullOrEmpty(faviconPath) && !Path.IsPathRooted(faviconPath))
         {
-            faviconPath = Path.GetFullPath(Path.Combine(rootDir, faviconPath));
+            string? projectCand = !string.IsNullOrEmpty(projectDir) ? Path.GetFullPath(Path.Combine(projectDir, faviconPath)) : null;
+            string rootCand = Path.GetFullPath(Path.Combine(rootDir, faviconPath));
+
+            if (projectCand != null && File.Exists(projectCand))
+            {
+                faviconPath = projectCand;
+            }
+            else if (File.Exists(rootCand))
+            {
+                faviconPath = rootCand;
+            }
+            else if (projectCand != null)
+            {
+                faviconPath = projectCand;
+            }
+            else
+            {
+                faviconPath = rootCand;
+            }
         }
 
         string catalystDir = entry.CatalystDirectory ?? string.Empty;
         if (!string.IsNullOrEmpty(catalystDir) && !Path.IsPathRooted(catalystDir))
         {
-            catalystDir = Path.GetFullPath(Path.Combine(rootDir, catalystDir));
+            string? projectCand = !string.IsNullOrEmpty(projectDir) ? Path.GetFullPath(Path.Combine(projectDir, catalystDir)) : null;
+            string rootCand = Path.GetFullPath(Path.Combine(rootDir, catalystDir));
+
+            if (projectCand != null && Directory.Exists(projectCand))
+            {
+                catalystDir = projectCand;
+            }
+            else if (Directory.Exists(rootCand))
+            {
+                catalystDir = rootCand;
+            }
+            else if (projectCand != null)
+            {
+                catalystDir = projectCand;
+            }
+            else
+            {
+                catalystDir = rootCand;
+            }
         }
 
         string customGlyphSvg = entry.Icon?.CustomGlyphSvg ?? string.Empty;
         if (!string.IsNullOrEmpty(customGlyphSvg) && !customGlyphSvg.StartsWith("<") && !Path.IsPathRooted(customGlyphSvg))
         {
-            string candidate = Path.GetFullPath(Path.Combine(rootDir, customGlyphSvg));
-            if (File.Exists(candidate)) customGlyphSvg = candidate;
+            string? projectCand = !string.IsNullOrEmpty(projectDir) ? Path.GetFullPath(Path.Combine(projectDir, customGlyphSvg)) : null;
+            string rootCand = Path.GetFullPath(Path.Combine(rootDir, customGlyphSvg));
+
+            if (projectCand != null && File.Exists(projectCand))
+            {
+                customGlyphSvg = projectCand;
+            }
+            else if (File.Exists(rootCand))
+            {
+                customGlyphSvg = rootCand;
+            }
+            else if (projectCand != null)
+            {
+                customGlyphSvg = projectCand;
+            }
+            else
+            {
+                customGlyphSvg = rootCand;
+            }
         }
 
         string svgOverride = entry.Icon?.SvgOverride ?? string.Empty;
         if (!string.IsNullOrEmpty(svgOverride) && !svgOverride.StartsWith("<") && !Path.IsPathRooted(svgOverride))
         {
-            string candidate = Path.GetFullPath(Path.Combine(rootDir, svgOverride));
-            if (File.Exists(candidate)) svgOverride = candidate;
+            string? projectCand = !string.IsNullOrEmpty(projectDir) ? Path.GetFullPath(Path.Combine(projectDir, svgOverride)) : null;
+            string rootCand = Path.GetFullPath(Path.Combine(rootDir, svgOverride));
+
+            if (projectCand != null && File.Exists(projectCand))
+            {
+                svgOverride = projectCand;
+            }
+            else if (File.Exists(rootCand))
+            {
+                svgOverride = rootCand;
+            }
+            else if (projectCand != null)
+            {
+                svgOverride = projectCand;
+            }
+            else
+            {
+                svgOverride = rootCand;
+            }
         }
 
         var appInfo = new AppInfo
@@ -240,27 +355,53 @@ public class AppConfigurationService : IAppConfigurationService
 
         if (string.IsNullOrEmpty(appInfo.FaviconPath))
         {
-            string appIconDir = Path.Combine(iconsDir, appInfo.Name);
-            string icoPath = Path.Combine(appIconDir, "favicon.ico");
-            string png32Path = Path.Combine(appIconDir, "favicon-32x32.png");
-            string pngPath = Path.Combine(appIconDir, $"{appInfo.Name}.png");
-            string svgPath = Path.Combine(appIconDir, $"{appInfo.Name}.svg");
+            if (!string.IsNullOrEmpty(projectDir))
+            {
+                string[] projectFaviconCandidates = {
+                    Path.Combine(projectDir, "wwwroot", "favicon.ico"),
+                    Path.Combine(projectDir, "favicon.ico"),
+                    Path.Combine(projectDir, "assets", "favicon.ico"),
+                    Path.Combine(projectDir, "Resources", "favicon.ico"),
+                    Path.Combine(projectDir, "Properties", "favicon.ico"),
+                    Path.Combine(projectDir, "wwwroot", "favicon.png"),
+                    Path.Combine(projectDir, "favicon.png"),
+                    Path.Combine(projectDir, "assets", "favicon.png")
+                };
 
-            if (File.Exists(icoPath))
-            {
-                appInfo.FaviconPath = icoPath;
+                foreach (var cand in projectFaviconCandidates)
+                {
+                    if (File.Exists(cand))
+                    {
+                        appInfo.FaviconPath = cand;
+                        break;
+                    }
+                }
             }
-            else if (File.Exists(png32Path))
+
+            if (string.IsNullOrEmpty(appInfo.FaviconPath))
             {
-                appInfo.FaviconPath = png32Path;
-            }
-            else if (File.Exists(pngPath))
-            {
-                appInfo.FaviconPath = pngPath;
-            }
-            else if (File.Exists(svgPath))
-            {
-                appInfo.FaviconPath = svgPath;
+                string appIconDir = Path.Combine(iconsDir, appInfo.Name);
+                string icoPath = Path.Combine(appIconDir, "favicon.ico");
+                string png32Path = Path.Combine(appIconDir, "favicon-32x32.png");
+                string pngPath = Path.Combine(appIconDir, $"{appInfo.Name}.png");
+                string svgPath = Path.Combine(appIconDir, $"{appInfo.Name}.svg");
+
+                if (File.Exists(icoPath))
+                {
+                    appInfo.FaviconPath = icoPath;
+                }
+                else if (File.Exists(png32Path))
+                {
+                    appInfo.FaviconPath = png32Path;
+                }
+                else if (File.Exists(pngPath))
+                {
+                    appInfo.FaviconPath = pngPath;
+                }
+                else if (File.Exists(svgPath))
+                {
+                    appInfo.FaviconPath = svgPath;
+                }
             }
         }
 
@@ -287,28 +428,58 @@ public class AppConfigurationService : IAppConfigurationService
             iconPath = Path.GetRelativePath(rootDir, iconPath);
         }
 
+        string? projectDir = GetProjectDirectory(app.ProjectPath, app.WorkingDirectory, rootDir);
+
         string faviconPath = app.FaviconPath;
-        if (!string.IsNullOrEmpty(faviconPath) && !string.IsNullOrEmpty(rootDir) && faviconPath.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrEmpty(faviconPath))
         {
-            faviconPath = Path.GetRelativePath(rootDir, faviconPath);
+            if (!string.IsNullOrEmpty(projectDir) && faviconPath.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            {
+                faviconPath = Path.GetRelativePath(projectDir, faviconPath);
+            }
+            else if (!string.IsNullOrEmpty(rootDir) && faviconPath.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
+            {
+                faviconPath = Path.GetRelativePath(rootDir, faviconPath);
+            }
         }
 
         string catalystDir = app.CatalystDirectory;
-        if (!string.IsNullOrEmpty(catalystDir) && !string.IsNullOrEmpty(rootDir) && catalystDir.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrEmpty(catalystDir))
         {
-            catalystDir = Path.GetRelativePath(rootDir, catalystDir);
+            if (!string.IsNullOrEmpty(projectDir) && catalystDir.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            {
+                catalystDir = Path.GetRelativePath(projectDir, catalystDir);
+            }
+            else if (!string.IsNullOrEmpty(rootDir) && catalystDir.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
+            {
+                catalystDir = Path.GetRelativePath(rootDir, catalystDir);
+            }
         }
 
         string customGlyphSvg = app.CustomGlyphSvg;
-        if (!string.IsNullOrEmpty(customGlyphSvg) && !string.IsNullOrEmpty(rootDir) && customGlyphSvg.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrEmpty(customGlyphSvg) && !customGlyphSvg.StartsWith("<"))
         {
-            customGlyphSvg = Path.GetRelativePath(rootDir, customGlyphSvg);
+            if (!string.IsNullOrEmpty(projectDir) && customGlyphSvg.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            {
+                customGlyphSvg = Path.GetRelativePath(projectDir, customGlyphSvg);
+            }
+            else if (!string.IsNullOrEmpty(rootDir) && customGlyphSvg.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
+            {
+                customGlyphSvg = Path.GetRelativePath(rootDir, customGlyphSvg);
+            }
         }
 
         string svgOverride = app.SvgOverride;
-        if (!string.IsNullOrEmpty(svgOverride) && !string.IsNullOrEmpty(rootDir) && svgOverride.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrEmpty(svgOverride) && !svgOverride.StartsWith("<"))
         {
-            svgOverride = Path.GetRelativePath(rootDir, svgOverride);
+            if (!string.IsNullOrEmpty(projectDir) && svgOverride.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            {
+                svgOverride = Path.GetRelativePath(projectDir, svgOverride);
+            }
+            else if (!string.IsNullOrEmpty(rootDir) && svgOverride.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
+            {
+                svgOverride = Path.GetRelativePath(rootDir, svgOverride);
+            }
         }
 
         return new AppConfigEntry

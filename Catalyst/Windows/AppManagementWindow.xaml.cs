@@ -467,18 +467,26 @@ public partial class AppManagementWindow : FluentWindow
         if (LstApps.SelectedItem is not AppInfo app) return;
 
         string rootDir = RootDir;
+        string? projectDir = Catalyst.Core.Services.AppConfigurationService.GetProjectDirectory(app.ProjectPath, app.WorkingDirectory, rootDir);
+        string initialDir = !string.IsNullOrEmpty(projectDir) && Directory.Exists(Path.Combine(projectDir, "icons"))
+            ? Path.Combine(projectDir, "icons")
+            : (!string.IsNullOrEmpty(projectDir) && Directory.Exists(projectDir) ? projectDir : Path.Combine(rootDir, "icons"));
 
         using var dialog = new System.Windows.Forms.OpenFileDialog
         {
             Title = "Select Custom Glyph SVG File",
-            InitialDirectory = Path.Combine(rootDir, "icons"),
+            InitialDirectory = initialDir,
             Filter = "SVG Files (*.svg)|*.svg|All Files (*.*)|*.*"
         };
 
         if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
         {
             string path = dialog.FileName;
-            if (path.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(projectDir) && path.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            {
+                path = Path.GetRelativePath(projectDir, path);
+            }
+            else if (path.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
             {
                 path = Path.GetRelativePath(rootDir, path);
             }
@@ -491,18 +499,26 @@ public partial class AppManagementWindow : FluentWindow
         if (LstApps.SelectedItem is not AppInfo app) return;
 
         string rootDir = RootDir;
+        string? projectDir = Catalyst.Core.Services.AppConfigurationService.GetProjectDirectory(app.ProjectPath, app.WorkingDirectory, rootDir);
+        string initialDir = !string.IsNullOrEmpty(projectDir) && Directory.Exists(Path.Combine(projectDir, "icons"))
+            ? Path.Combine(projectDir, "icons")
+            : (!string.IsNullOrEmpty(projectDir) && Directory.Exists(projectDir) ? projectDir : Path.Combine(rootDir, "icons"));
 
         using var dialog = new System.Windows.Forms.OpenFileDialog
         {
             Title = "Select Complete SVG Override File",
-            InitialDirectory = Path.Combine(rootDir, "icons"),
+            InitialDirectory = initialDir,
             Filter = "SVG Files (*.svg)|*.svg|All Files (*.*)|*.*"
         };
 
         if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
         {
             string path = dialog.FileName;
-            if (path.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(projectDir) && path.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            {
+                path = Path.GetRelativePath(projectDir, path);
+            }
+            else if (path.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
             {
                 path = Path.GetRelativePath(rootDir, path);
             }
@@ -515,18 +531,24 @@ public partial class AppManagementWindow : FluentWindow
         if (LstApps.SelectedItem is not AppInfo app) return;
 
         string rootDir = RootDir;
+        string? projectDir = Catalyst.Core.Services.AppConfigurationService.GetProjectDirectory(app.ProjectPath, app.WorkingDirectory, rootDir);
+        string initialDir = !string.IsNullOrEmpty(projectDir) && Directory.Exists(projectDir) ? projectDir : rootDir;
 
         using var dialog = new System.Windows.Forms.OpenFileDialog
         {
             Title = "Select Project Favicon Target",
-            InitialDirectory = rootDir,
+            InitialDirectory = initialDir,
             Filter = "Icon / Vector Files (*.ico;*.png;*.svg)|*.ico;*.png;*.svg|ICO Files (*.ico)|*.ico|PNG Files (*.png)|*.png|SVG Files (*.svg)|*.svg|All Files (*.*)|*.*"
         };
 
         if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
         {
             string path = dialog.FileName;
-            if (path.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(projectDir) && path.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            {
+                path = Path.GetRelativePath(projectDir, path);
+            }
+            else if (path.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
             {
                 path = Path.GetRelativePath(rootDir, path);
             }
@@ -539,13 +561,18 @@ public partial class AppManagementWindow : FluentWindow
         if (LstApps.SelectedItem is not AppInfo app) return;
 
         string rootDir = RootDir;
+        string? projectDir = Catalyst.Core.Services.AppConfigurationService.GetProjectDirectory(app.ProjectPath, app.WorkingDirectory, rootDir);
+        string baseDir = !string.IsNullOrEmpty(projectDir) && Directory.Exists(projectDir) ? projectDir : rootDir;
+
         string initialDir = !string.IsNullOrWhiteSpace(app.CatalystDirectory)
-            ? (Path.IsPathRooted(app.CatalystDirectory) ? app.CatalystDirectory : Path.GetFullPath(Path.Combine(rootDir, app.CatalystDirectory)))
-            : rootDir;
+            ? (Path.IsPathRooted(app.CatalystDirectory)
+                ? app.CatalystDirectory
+                : Path.GetFullPath(Path.Combine(baseDir, app.CatalystDirectory)))
+            : baseDir;
 
         if (!Directory.Exists(initialDir))
         {
-            initialDir = rootDir;
+            initialDir = baseDir;
         }
 
         using var dialog = new FolderBrowserDialog
@@ -558,7 +585,11 @@ public partial class AppManagementWindow : FluentWindow
         if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
         {
             string path = dialog.SelectedPath;
-            if (path.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(projectDir) && path.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            {
+                path = Path.GetRelativePath(projectDir, path);
+            }
+            else if (path.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
             {
                 path = Path.GetRelativePath(rootDir, path);
             }
