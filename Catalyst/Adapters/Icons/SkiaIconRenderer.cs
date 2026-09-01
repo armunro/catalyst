@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Windows.Media.Imaging;
+using System.Xml.Linq;
 using Catalyst.Core.Ports.Outbound;
 using SkiaSharp;
 using Svg.Skia;
@@ -155,15 +157,15 @@ public class SkiaIconRenderer : IIconRenderer
         {
             try
             {
-                var svg = LoadSvgContent(app.CustomGlyphSvg, rootDir);
+                SKColor? glyphColor = null;
+                if (!string.IsNullOrWhiteSpace(app.CustomGlyphColor) && SKColor.TryParse(app.CustomGlyphColor, out var parsedGlyphColor))
+                {
+                    glyphColor = parsedGlyphColor;
+                }
+
+                var svg = LoadSvgContent(app.CustomGlyphSvg, rootDir, glyphColor);
                 if (svg?.Picture != null)
                 {
-                    SKColor? glyphColor = null;
-                    if (!string.IsNullOrWhiteSpace(app.CustomGlyphColor) && SKColor.TryParse(app.CustomGlyphColor, out var parsedGlyphColor))
-                    {
-                        glyphColor = parsedGlyphColor;
-                    }
-
                     float padding = size * 0.16f;
                     float glyphSize = size - (padding * 2);
                     DrawScaledPicture(canvas, svg.Picture, padding, padding, glyphSize, glyphSize, glyphColor);
@@ -190,16 +192,17 @@ public class SkiaIconRenderer : IIconRenderer
                 string svgContent = FetchBootstrapIconSvg(iconName, iconsBaseDir);
                 if (!string.IsNullOrEmpty(svgContent))
                 {
+                    SKColor bootstrapColor = SKColors.White;
+                    if (!string.IsNullOrWhiteSpace(app.CustomGlyphColor) && SKColor.TryParse(app.CustomGlyphColor, out var parsedBootstrapColor))
+                    {
+                        bootstrapColor = parsedBootstrapColor;
+                    }
+
+                    string tintedSvg = ApplyTintToSvg(svgContent, bootstrapColor);
                     var svg = new SKSvg();
-                    svg.FromSvg(svgContent);
+                    svg.FromSvg(tintedSvg);
                     if (svg.Picture != null)
                     {
-                        SKColor bootstrapColor = SKColors.White;
-                        if (!string.IsNullOrWhiteSpace(app.CustomGlyphColor) && SKColor.TryParse(app.CustomGlyphColor, out var parsedBootstrapColor))
-                        {
-                            bootstrapColor = parsedBootstrapColor;
-                        }
-
                         float padding = size * 0.16f;
                         float glyphSize = size - (padding * 2);
                         DrawScaledPicture(canvas, svg.Picture, padding, padding, glyphSize, glyphSize, bootstrapColor);
@@ -218,7 +221,12 @@ public class SkiaIconRenderer : IIconRenderer
         {
             try
             {
-                DrawLabelText(canvas, app.Label, size);
+                SKColor labelColor = SKColors.White;
+                if (!string.IsNullOrWhiteSpace(app.CustomGlyphColor) && SKColor.TryParse(app.CustomGlyphColor, out var parsedLabelColor))
+                {
+                    labelColor = parsedLabelColor;
+                }
+                DrawLabelText(canvas, app.Label, size, labelColor);
             }
             catch (Exception ex)
             {
@@ -347,11 +355,11 @@ public class SkiaIconRenderer : IIconRenderer
         canvas.DrawPicture(picture, ref matrix, paint);
     }
 
-    private void DrawLabelText(SKCanvas canvas, string text, int size)
+    private void DrawLabelText(SKCanvas canvas, string text, int size, SKColor? textColor = null)
     {
         using var textPaint = new SKPaint
         {
-            Color = SKColors.White,
+            Color = textColor ?? SKColors.White,
             IsAntialias = true,
             SubpixelText = true,
             LcdRenderText = true,
@@ -378,7 +386,7 @@ public class SkiaIconRenderer : IIconRenderer
         canvas.DrawText(text, textX, textY, textPaint);
     }
 
-    private SKSvg? LoadSvgContent(string input, string? rootDir)
+    private SKSvg? LoadSvgContent(string input, string? rootDir, SKColor? tintColor = null)
     {
         if (string.IsNullOrWhiteSpace(input)) return null;
 
@@ -401,19 +409,125 @@ public class SkiaIconRenderer : IIconRenderer
         var svg = new SKSvg();
         if (resolvedFilePath != null)
         {
-            svg.Load(resolvedFilePath);
+            string fileContent = File.ReadAllText(resolvedFilePath);
+            if (tintColor.HasValue)
+            {
+                fileContent = ApplyTintToSvg(fileContent, tintColor.Value);
+            }
+            svg.FromSvg(fileContent);
             return svg;
         }
 
         if (trimmed.StartsWith("<", StringComparison.OrdinalIgnoreCase))
         {
-            svg.FromSvg(trimmed);
+            string content = trimmed;
+            if (tintColor.HasValue)
+            {
+                content = ApplyTintToSvg(content, tintColor.Value);
+            }
+            svg.FromSvg(content);
             return svg;
         }
 
-        string wrappedSvg = $@"<svg xmlns=""http://www.w3.org/2000/svg"" viewBox=""0 0 100 100""><path d=""{trimmed}"" fill=""white"" /></svg>";
+        string hexColor = tintColor.HasValue ? $"#{tintColor.Value.Red:X2}{tintColor.Value.Green:X2}{tintColor.Value.Blue:X2}" : "white";
+        string wrappedSvg = $@"<svg xmlns=""http://www.w3.org/2000/svg"" viewBox=""0 0 100 100""><path d=""{trimmed}"" fill=""{hexColor}"" /></svg>";
         svg.FromSvg(wrappedSvg);
         return svg;
+    }
+
+    private static string ApplyTintToSvg(string svgContent, SKColor tintColor)
+    {
+        if (string.IsNullOrWhiteSpace(svgContent)) return svgContent;
+
+        string hexColor = $"#{tintColor.Red:X2}{tintColor.Green:X2}{tintColor.Blue:X2}";
+
+        try
+        {
+            var doc = XDocument.Parse(svgContent);
+            var root = doc.Root;
+            if (root != null)
+            {
+                foreach (var elem in doc.Descendants())
+                {
+                    var fillAttr = elem.Attribute("fill");
+                    if (fillAttr != null)
+                    {
+                        string val = fillAttr.Value.Trim();
+                        if (string.Equals(val, "currentColor", StringComparison.OrdinalIgnoreCase) ||
+                            (!string.Equals(val, "none", StringComparison.OrdinalIgnoreCase) &&
+                             !string.Equals(val, "transparent", StringComparison.OrdinalIgnoreCase) &&
+                             !val.StartsWith("url(", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            fillAttr.Value = hexColor;
+                        }
+                    }
+
+                    var strokeAttr = elem.Attribute("stroke");
+                    if (strokeAttr != null)
+                    {
+                        string val = strokeAttr.Value.Trim();
+                        if (string.Equals(val, "currentColor", StringComparison.OrdinalIgnoreCase))
+                        {
+                            strokeAttr.Value = hexColor;
+                        }
+                    }
+
+                    var styleAttr = elem.Attribute("style");
+                    if (styleAttr != null)
+                    {
+                        string styleVal = styleAttr.Value;
+                        styleVal = Regex.Replace(
+                            styleVal,
+                            @"(fill\s*:\s*)(?:currentColor|#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)|[a-zA-Z]+)",
+                            m => m.Value.Contains("none", StringComparison.OrdinalIgnoreCase) || m.Value.Contains("transparent", StringComparison.OrdinalIgnoreCase) || m.Value.Contains("url", StringComparison.OrdinalIgnoreCase) ? m.Value : $"{m.Groups[1].Value}{hexColor}",
+                            RegexOptions.IgnoreCase);
+
+                        styleVal = Regex.Replace(
+                            styleVal,
+                            @"(stroke\s*:\s*)(?:currentColor)",
+                            $"$1{hexColor}",
+                            RegexOptions.IgnoreCase);
+
+                        styleAttr.Value = styleVal;
+                    }
+                }
+
+                var rootFill = root.Attribute("fill");
+                if (rootFill == null)
+                {
+                    root.SetAttributeValue("fill", hexColor);
+                }
+
+                return doc.ToString();
+            }
+        }
+        catch
+        {
+            // Fallback for non-standard XML or fragments
+        }
+
+        string modified = Regex.Replace(
+            svgContent,
+            @"fill\s*=\s*""(?:currentColor|#[0-9a-fA-F]{3,8}|[a-zA-Z]+)""",
+            m => m.Value.Contains("none", StringComparison.OrdinalIgnoreCase) || m.Value.Contains("transparent", StringComparison.OrdinalIgnoreCase) ? m.Value : $"fill=\"{hexColor}\"",
+            RegexOptions.IgnoreCase);
+
+        modified = Regex.Replace(
+            modified,
+            @"stroke\s*=\s*""currentColor""",
+            $"stroke=\"{hexColor}\"",
+            RegexOptions.IgnoreCase);
+
+        if (!modified.Contains("fill=", StringComparison.OrdinalIgnoreCase))
+        {
+            int svgTag = modified.IndexOf("<svg", StringComparison.OrdinalIgnoreCase);
+            if (svgTag >= 0)
+            {
+                modified = modified.Insert(svgTag + 4, $" fill=\"{hexColor}\"");
+            }
+        }
+
+        return modified;
     }
 
     private string FetchBootstrapIconSvg(string name, string iconsBaseDir)

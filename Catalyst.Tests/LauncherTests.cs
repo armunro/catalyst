@@ -1320,6 +1320,135 @@ apps:
     }
 
     [Fact]
+    public void SkiaIconRenderer_RenderIconSvg_RespectsGlyphTint_ForCustomGlyphSvg()
+    {
+        var renderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+        var app = new AppInfo
+        {
+            Name = "TintTestApp",
+            Color = "#0000FF", // Blue background
+            CustomGlyphSvg = @"<svg xmlns=""http://www.w3.org/2000/svg"" viewBox=""0 0 100 100""><rect x=""25"" y=""25"" width=""50"" height=""50"" fill=""#000000"" /></svg>",
+            CustomGlyphColor = "#FF0000" // Red glyph tint
+        };
+
+        string svg = renderer.RenderIconSvg(app, 512, ".");
+        Assert.NotNull(svg);
+
+        // Load the rendered SVG and render to bitmap to check pixel color
+        var skSvg = new Svg.Skia.SKSvg();
+        skSvg.FromSvg(svg);
+        Assert.NotNull(skSvg.Picture);
+
+        using var bitmap = new SkiaSharp.SKBitmap(512, 512);
+        using (var canvas = new SkiaSharp.SKCanvas(bitmap))
+        {
+            canvas.Clear(SkiaSharp.SKColors.Transparent);
+            canvas.DrawPicture(skSvg.Picture);
+        }
+
+        // Center pixel (256, 256) is inside the glyph rect and must be red (#FF0000), NOT black (#000000)
+        var centerPixel = bitmap.GetPixel(256, 256);
+        Assert.True(centerPixel.Red > 200, $"Expected center glyph to be red, but Red was {centerPixel.Red} (Full color: {centerPixel})");
+        Assert.True(centerPixel.Blue < 50, $"Expected center glyph to not be blue, but Blue was {centerPixel.Blue}");
+        Assert.True(centerPixel.Green < 50, $"Expected center glyph to not be green, but Green was {centerPixel.Green}");
+    }
+
+    [Fact]
+    public void SkiaIconRenderer_RenderIconSvg_RespectsGlyphTint_ForBootstrapIcon()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystBootstrapTintTest_" + Guid.NewGuid().ToString("N"));
+        string cacheDir = Path.Combine(tempDir, "_bootstrap_cache");
+        Directory.CreateDirectory(cacheDir);
+
+        try
+        {
+            // Standard Bootstrap icon with fill="currentColor"
+            File.WriteAllText(Path.Combine(cacheDir, "testicon.svg"),
+                @"<svg xmlns=""http://www.w3.org/2000/svg"" width=""16"" height=""16"" fill=""currentColor"" viewBox=""0 0 16 16""><rect x=""4"" y=""4"" width=""8"" height=""8"" /></svg>");
+
+            var renderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+            var app = new AppInfo
+            {
+                Name = "BootstrapTintApp",
+                Color = "#0000FF", // Blue background
+                BootstrapIcon = "testicon",
+                CustomGlyphColor = "#00FF00" // Green glyph tint
+            };
+
+            string svg = renderer.RenderIconSvg(app, 512, tempDir);
+            Assert.NotNull(svg);
+
+            var skSvg = new Svg.Skia.SKSvg();
+            skSvg.FromSvg(svg);
+            Assert.NotNull(skSvg.Picture);
+
+            using var bitmap = new SkiaSharp.SKBitmap(512, 512);
+            using (var canvas = new SkiaSharp.SKCanvas(bitmap))
+            {
+                canvas.Clear(SkiaSharp.SKColors.Transparent);
+                canvas.DrawPicture(skSvg.Picture);
+            }
+
+            // Center pixel (256, 256) is inside the glyph rect and must be green (#00FF00), NOT black (#000000) or white
+            var centerPixel = bitmap.GetPixel(256, 256);
+            Assert.True(centerPixel.Green > 200, $"Expected center glyph to be green, but Green was {centerPixel.Green} (Full color: {centerPixel})");
+            Assert.True(centerPixel.Red < 50, $"Expected center glyph to not be red, but Red was {centerPixel.Red}");
+            Assert.True(centerPixel.Blue < 50, $"Expected center glyph to not be blue, but Blue was {centerPixel.Blue}");
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void SkiaIconRenderer_RenderIconSvg_BootstrapIconDefaultsToWhite_NotBlack()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystBootstrapWhiteTest_" + Guid.NewGuid().ToString("N"));
+        string cacheDir = Path.Combine(tempDir, "_bootstrap_cache");
+        Directory.CreateDirectory(cacheDir);
+
+        try
+        {
+            File.WriteAllText(Path.Combine(cacheDir, "whiteicon.svg"),
+                @"<svg xmlns=""http://www.w3.org/2000/svg"" width=""16"" height=""16"" fill=""currentColor"" viewBox=""0 0 16 16""><rect x=""4"" y=""4"" width=""8"" height=""8"" /></svg>");
+
+            var renderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+            var app = new AppInfo
+            {
+                Name = "BootstrapWhiteApp",
+                Color = "#0000FF", // Blue background
+                BootstrapIcon = "whiteicon"
+                // CustomGlyphColor not set -> default is white
+            };
+
+            string svg = renderer.RenderIconSvg(app, 512, tempDir);
+            Assert.NotNull(svg);
+
+            var skSvg = new Svg.Skia.SKSvg();
+            skSvg.FromSvg(svg);
+            Assert.NotNull(skSvg.Picture);
+
+            using var bitmap = new SkiaSharp.SKBitmap(512, 512);
+            using (var canvas = new SkiaSharp.SKCanvas(bitmap))
+            {
+                canvas.Clear(SkiaSharp.SKColors.Transparent);
+                canvas.DrawPicture(skSvg.Picture);
+            }
+
+            // Center pixel must be White (#FFFFFF), NOT black (#000000)
+            var centerPixel = bitmap.GetPixel(256, 256);
+            Assert.True(centerPixel.Red > 200, $"Expected center glyph to be white (Red > 200), but Red was {centerPixel.Red} (Full color: {centerPixel})");
+            Assert.True(centerPixel.Green > 200, $"Expected center glyph to be white (Green > 200), but Green was {centerPixel.Green}");
+            Assert.True(centerPixel.Blue > 200, $"Expected center glyph to be white (Blue > 200), but Blue was {centerPixel.Blue}");
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
     public void AppConfigurationService_ConvertToAppInfo_AutomaticallyPopulatesIconPathFromDiskIfExists()
     {
         string tempDir = Path.Combine(Path.GetTempPath(), "CatalystIconPathTest_" + Guid.NewGuid().ToString("N"));
