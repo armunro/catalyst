@@ -296,93 +296,10 @@ public class IconManagementService : IIconManagementService
         Directory.CreateDirectory(destDir);
         string assetsDir = Path.Combine(destDir, "assets");
         Directory.CreateDirectory(assetsDir);
-        string iconsDir = Path.Combine(destDir, "icons");
-        Directory.CreateDirectory(iconsDir);
 
         logger?.Invoke($"Exporting .catalyst pack for '{app.Name}' to {destDir}...");
 
-        // 1. Generate & Export full suite of branding icons to .catalyst/icons/
-        using var mainBitmap = _iconRenderer.RenderIconBitmap(app, 512, iconsBaseDir, rootDir, logger);
-        string exportedMainPng = Path.Combine(iconsDir, $"{app.Name}.png");
-        string exportedIconPng = Path.Combine(iconsDir, "icon.png");
-        try
-        {
-            _iconRenderer.SavePng(mainBitmap, exportedMainPng);
-            _iconRenderer.SavePng(mainBitmap, exportedIconPng);
-        }
-        catch (Exception ex)
-        {
-            logger?.Invoke($"Warning saving PNG icons: {ex.Message}");
-        }
-
-        string exportedSvg = Path.Combine(iconsDir, $"{app.Name}.svg");
-        string exportedIconSvg = Path.Combine(iconsDir, "icon.svg");
-        try
-        {
-            _iconRenderer.SaveSvg(app, exportedSvg, 512, iconsBaseDir, rootDir, logger);
-            _iconRenderer.SaveSvg(app, exportedIconSvg, 512, iconsBaseDir, rootDir, logger);
-        }
-        catch (Exception ex)
-        {
-            logger?.Invoke($"Warning saving SVG icons: {ex.Message}");
-        }
-
-        int[] faviconSizes = { 16, 32, 48 };
-        var iconImages = new List<byte[]>();
-        var iconDimensions = new List<(int Width, int Height)>();
-
-        foreach (var fSize in faviconSizes)
-        {
-            using var sizeBitmap = _iconRenderer.RenderIconBitmap(app, fSize, iconsBaseDir, rootDir, logger);
-            if (sizeBitmap == null) continue;
-
-            string faviconPngPath = Path.Combine(iconsDir, $"favicon-{fSize}x{fSize}.png");
-            try
-            {
-                using var image = SKImage.FromBitmap(sizeBitmap);
-                using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-                using (var stream = new FileStream(faviconPngPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
-                {
-                    data.SaveTo(stream);
-                }
-                byte[] bytes = data.ToArray();
-                iconImages.Add(bytes);
-                iconDimensions.Add((fSize, fSize));
-            }
-            catch (Exception ex)
-            {
-                logger?.Invoke($"Warning saving favicon {fSize}x{fSize}: {ex.Message}");
-            }
-        }
-
-        string icoPath = Path.Combine(iconsDir, "favicon.ico");
-        try
-        {
-            if (iconImages.Count > 0)
-            {
-                _iconRenderer.SaveAsIco(iconImages, iconDimensions, icoPath);
-            }
-        }
-        catch (Exception ex)
-        {
-            logger?.Invoke($"Warning saving favicon.ico: {ex.Message}");
-        }
-
-        // Also ensure default app icon exists in main icons folder if needed
-        string appIconDir = Path.Combine(iconsBaseDir, app.Name);
-        if (!Directory.Exists(appIconDir))
-        {
-            Directory.CreateDirectory(appIconDir);
-            try
-            {
-                File.Copy(exportedMainPng, Path.Combine(appIconDir, $"{app.Name}.png"), true);
-                File.Copy(exportedSvg, Path.Combine(appIconDir, $"{app.Name}.svg"), true);
-                if (File.Exists(icoPath)) File.Copy(icoPath, Path.Combine(appIconDir, "favicon.ico"), true);
-            }
-            catch { }
-        }
-
-        // 2. Package Input Assets (customGlyphSvg, svgOverride, iconPath)
+        // 1. Package Input Assets (customGlyphSvg, svgOverride, iconPath)
         string exportedGlyphSvgPath = string.Empty;
         if (!string.IsNullOrWhiteSpace(app.CustomGlyphSvg))
         {
@@ -448,24 +365,18 @@ public class IconManagementService : IIconManagementService
                 ? app.IconPath
                 : Path.GetFullPath(Path.Combine(rootDir, app.IconPath));
 
-            if (File.Exists(src) && !src.StartsWith(iconsDir, StringComparison.OrdinalIgnoreCase))
+            if (File.Exists(src) &&
+                !src.StartsWith(iconsBaseDir, StringComparison.OrdinalIgnoreCase) &&
+                !src.StartsWith(destDir, StringComparison.OrdinalIgnoreCase))
             {
                 string targetFileName = Path.GetFileName(src);
                 string targetAssetPath = Path.Combine(assetsDir, targetFileName);
                 File.Copy(src, targetAssetPath, true);
                 exportedCustomIconPath = $"assets/{targetFileName}";
             }
-            else
-            {
-                exportedCustomIconPath = $"icons/{app.Name}.png";
-            }
-        }
-        else
-        {
-            exportedCustomIconPath = $"icons/{app.Name}.png";
         }
 
-        // 3. Package Configuration into app.yaml and catalyst.yaml
+        // 2. Package Configuration into catalystApp.yaml
         string projectDir = Path.GetDirectoryName(destDir) ?? rootDir;
         string relProjectPath = app.ProjectPath;
         if (!string.IsNullOrEmpty(relProjectPath))
@@ -540,9 +451,8 @@ public class IconManagementService : IIconManagementService
             .WithNamingConvention(YamlDotNet.Serialization.NamingConventions.CamelCaseNamingConvention.Instance)
             .Build();
 
-        string appYaml = serializer.Serialize(entry);
-        File.WriteAllText(Path.Combine(destDir, "app.yaml"), appYaml);
-        File.WriteAllText(Path.Combine(destDir, "catalyst.yaml"), appYaml);
+        string catalystAppYaml = serializer.Serialize(entry);
+        File.WriteAllText(Path.Combine(destDir, "catalystApp.yaml"), catalystAppYaml);
 
         // Update app's CatalystDirectory property if not already set
         if (string.IsNullOrWhiteSpace(app.CatalystDirectory))

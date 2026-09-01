@@ -2308,13 +2308,13 @@ apps:
             Assert.Equal(expectedDir, exportedDir);
             Assert.True(Directory.Exists(exportedDir));
 
-            // Verify app.yaml and catalyst.yaml exist and contain settings
-            string appYamlPath = Path.Combine(exportedDir, "app.yaml");
-            string catalystYamlPath = Path.Combine(exportedDir, "catalyst.yaml");
-            Assert.True(File.Exists(appYamlPath));
-            Assert.True(File.Exists(catalystYamlPath));
+            // Verify catalystApp.yaml exists and contains settings
+            string catalystAppYamlPath = Path.Combine(exportedDir, "catalystApp.yaml");
+            Assert.True(File.Exists(catalystAppYamlPath));
+            Assert.False(File.Exists(Path.Combine(exportedDir, "app.yaml")));
+            Assert.False(File.Exists(Path.Combine(exportedDir, "catalyst.yaml")));
 
-            string appYamlText = File.ReadAllText(appYamlPath);
+            string appYamlText = File.ReadAllText(catalystAppYamlPath);
             Assert.Contains("name: Ghost", appYamlText);
             Assert.Contains("color: '#9C27B0'", appYamlText);
             Assert.Contains("secondaryColor: '#E91E63'", appYamlText);
@@ -2328,15 +2328,8 @@ apps:
             Assert.True(File.Exists(copiedSvgPath));
             Assert.Equal(File.ReadAllText(customSvgFile), File.ReadAllText(copiedSvgPath));
 
-            // Verify exported icons suite in icons/
-            Assert.True(File.Exists(Path.Combine(exportedDir, "icons", "Ghost.png")));
-            Assert.True(File.Exists(Path.Combine(exportedDir, "icons", "icon.png")));
-            Assert.True(File.Exists(Path.Combine(exportedDir, "icons", "Ghost.svg")));
-            Assert.True(File.Exists(Path.Combine(exportedDir, "icons", "icon.svg")));
-            Assert.True(File.Exists(Path.Combine(exportedDir, "icons", "favicon.ico")));
-            Assert.True(File.Exists(Path.Combine(exportedDir, "icons", "favicon-16x16.png")));
-            Assert.True(File.Exists(Path.Combine(exportedDir, "icons", "favicon-32x32.png")));
-            Assert.True(File.Exists(Path.Combine(exportedDir, "icons", "favicon-48x48.png")));
+            // Verify output icons folder is NOT created in .catalyst
+            Assert.False(Directory.Exists(Path.Combine(exportedDir, "icons")));
         }
         finally
         {
@@ -2383,10 +2376,11 @@ apps:
 
             string exported = mgmtVm.ExportCatalystFolder(app);
             Assert.Equal(customTargetDir, exported);
-            Assert.True(File.Exists(Path.Combine(customTargetDir, "app.yaml")));
+            Assert.True(File.Exists(Path.Combine(customTargetDir, "catalystApp.yaml")));
+            Assert.False(File.Exists(Path.Combine(customTargetDir, "app.yaml")));
+            Assert.False(File.Exists(Path.Combine(customTargetDir, "catalyst.yaml")));
             Assert.True(File.Exists(Path.Combine(customTargetDir, "assets", "custom-glyph.svg")));
-            Assert.True(File.Exists(Path.Combine(customTargetDir, "icons", "Clipper.png")));
-            Assert.True(File.Exists(Path.Combine(customTargetDir, "icons", "favicon.ico")));
+            Assert.False(Directory.Exists(Path.Combine(customTargetDir, "icons")));
         }
         finally
         {
