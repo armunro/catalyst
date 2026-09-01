@@ -9,7 +9,7 @@
         mc:Ignorable="d"
         Title="Catalyst - App Management" Height="780" Width="920"
         Icon="pack://application:,,,/favicon.ico"
-        MinWidth="800" MinHeight="700"
+        MinWidth="800" MinHeight="900"
         WindowBackdropType="Mica"
         ExtendsContentIntoTitleBar="True"
         WindowStartupLocation="CenterOwner">
@@ -475,7 +475,7 @@
                                     </Border>
 
                                     <!-- Badge Label & Glyph Styling Card -->
-                                    <Border Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="12">
+                                    <Border Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,14">
                                         <StackPanel>
                                             <TextBlock Text="BADGE LABEL &amp; GLYPH STYLING" FontSize="11" FontWeight="Bold" Foreground="#60A5FA" Margin="0,0,0,10"/>
 
@@ -513,22 +513,9 @@
                                             </Grid>
                                         </StackPanel>
                                     </Border>
-                                </StackPanel>
-                            </ScrollViewer>
-                        </TabItem>
 
-                        <!-- Tab 3: Custom Assets & Overrides -->
-                        <TabItem>
-                            <TabItem.Header>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="4,2">
-                                    <ui:SymbolIcon Symbol="Image20" Margin="0,0,6,0"/>
-                                    <TextBlock Text="Custom Assets" FontWeight="SemiBold" FontSize="12"/>
-                                </StackPanel>
-                            </TabItem.Header>
-                            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,10,0,0">
-                                <StackPanel Margin="0,0,8,0">
-                                    <!-- Vector Glyphs Card -->
-                                    <Border Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,14">
+                                    <!-- Custom SVG Glyph & Override Card -->
+                                    <Border Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="12">
                                         <StackPanel>
                                             <TextBlock Text="CUSTOM SVG GLYPH &amp; OVERRIDE" FontSize="11" FontWeight="Bold" Foreground="#60A5FA" Margin="0,0,0,10"/>
 
@@ -567,7 +554,7 @@
                             </ScrollViewer>
                         </TabItem>
 
-                        <!-- Tab 4: Developer -->
+                        <!-- Tab 3: Developer -->
                         <TabItem>
                             <TabItem.Header>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="4,2">
