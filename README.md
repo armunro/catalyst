@@ -177,6 +177,7 @@ apps:
 |---|---|---|---|
 | `name` | `string` | `""` | Display name of the application. |
 | `hidden` | `bool` | `false` | Whether to hide this app from the main launcher overlay. |
+| `catalystDirectory` | `string` | `""` | Path to the `.catalyst` directory for project repository branding/settings export. |
 | `launch` | `object` | `{}` | Launch configuration settings. |
 | `icon` | `object` | `{}` | Icon customization and styling settings. |
 

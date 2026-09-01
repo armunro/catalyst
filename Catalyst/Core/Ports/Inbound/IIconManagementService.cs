@@ -10,4 +10,5 @@ public interface IIconManagementService
     void GenerateAllIcons(IEnumerable<AppInfo> apps, Action<string>? logger = null);
     BitmapSource? RenderPreview(AppInfo app, int size = 512);
     bool UpdateProjectFavicon(AppInfo app, Action<string>? logger = null);
+    string ExportCatalystFolder(AppInfo app, string? targetDirectory = null, Action<string>? logger = null);
 }

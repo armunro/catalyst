@@ -186,6 +186,12 @@ public class AppConfigurationService : IAppConfigurationService
             faviconPath = Path.GetFullPath(Path.Combine(rootDir, faviconPath));
         }
 
+        string catalystDir = entry.CatalystDirectory ?? string.Empty;
+        if (!string.IsNullOrEmpty(catalystDir) && !Path.IsPathRooted(catalystDir))
+        {
+            catalystDir = Path.GetFullPath(Path.Combine(rootDir, catalystDir));
+        }
+
         string customGlyphSvg = entry.Icon?.CustomGlyphSvg ?? string.Empty;
         if (!string.IsNullOrEmpty(customGlyphSvg) && !customGlyphSvg.StartsWith("<") && !Path.IsPathRooted(customGlyphSvg))
         {
@@ -215,6 +221,7 @@ public class AppConfigurationService : IAppConfigurationService
             Label = entry.Icon?.Label ?? string.Empty,
             IconPath = iconPath,
             FaviconPath = faviconPath,
+            CatalystDirectory = catalystDir,
             BootstrapIcon = entry.Icon?.BootstrapIcon ?? string.Empty,
             CustomGlyphSvg = customGlyphSvg,
             CustomGlyphColor = entry.Icon?.CustomGlyphColor ?? string.Empty,
@@ -286,6 +293,12 @@ public class AppConfigurationService : IAppConfigurationService
             faviconPath = Path.GetRelativePath(rootDir, faviconPath);
         }
 
+        string catalystDir = app.CatalystDirectory;
+        if (!string.IsNullOrEmpty(catalystDir) && !string.IsNullOrEmpty(rootDir) && catalystDir.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
+        {
+            catalystDir = Path.GetRelativePath(rootDir, catalystDir);
+        }
+
         string customGlyphSvg = app.CustomGlyphSvg;
         if (!string.IsNullOrEmpty(customGlyphSvg) && !string.IsNullOrEmpty(rootDir) && customGlyphSvg.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
         {
@@ -302,6 +315,7 @@ public class AppConfigurationService : IAppConfigurationService
         {
             Name = app.Name,
             Hidden = app.IsHidden,
+            CatalystDirectory = catalystDir,
             Launch = new LaunchConfig
             {
                 ProjectPath = projectPath,

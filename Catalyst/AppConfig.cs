@@ -12,6 +12,7 @@ public class AppConfigEntry
 {
     public string Name { get; set; } = string.Empty;
     public bool Hidden { get; set; } = false;
+    public string CatalystDirectory { get; set; } = string.Empty;
     public LaunchConfig Launch { get; set; } = new();
     public IconConfig Icon { get; set; } = new();
 }

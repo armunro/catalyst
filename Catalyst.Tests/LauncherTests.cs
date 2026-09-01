@@ -2218,6 +2218,182 @@ apps:
         Assert.Null(threadEx);
     }
 
+    [Fact]
+    public void AppConfiguration_CatalystDirectory_SerializesAndDeserializesCorrectly()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystDirTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var configRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var settings = new Catalyst.Adapters.Persistence.JsonSettingsStorage(Path.Combine(tempDir, "settings.json"));
+            var pathResolver = new Catalyst.Adapters.Persistence.PathResolver(settings);
+            string configPath = Path.Combine(tempDir, "apps.yaml");
+            pathResolver.CustomConfigPath = configPath;
+            var configService = new Catalyst.Core.Services.AppConfigurationService(configRepo, settings, pathResolver);
+
+            string customCatalystDir = Path.Combine(tempDir, "FlightPlan", ".catalyst");
+
+            var app = new AppInfo
+            {
+                Name = "FlightPlan",
+                Color = "#1E88E4",
+                Label = "FP",
+                ProjectPath = Path.Combine(tempDir, "FlightPlan", "FlightPlan.csproj"),
+                CatalystDirectory = customCatalystDir
+            };
+
+            configService.SaveApps(new[] { app }, configPath);
+
+            string yamlContent = File.ReadAllText(configPath);
+            Assert.Contains("catalystDirectory", yamlContent);
+
+            var loadedApps = configService.LoadApps(configPath);
+            Assert.Single(loadedApps);
+            Assert.Equal("FlightPlan", loadedApps[0].Name);
+            Assert.Equal(customCatalystDir, loadedApps[0].CatalystDirectory);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void ExportCatalystFolder_PackagesAllSettingsAndAssetsSuccessfully()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystExportTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var configRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var settings = new Catalyst.Adapters.Persistence.JsonSettingsStorage(Path.Combine(tempDir, "settings.json"));
+            var pathResolver = new Catalyst.Adapters.Persistence.PathResolver(settings);
+            string configPath = Path.Combine(tempDir, "apps.yaml");
+            pathResolver.CustomConfigPath = configPath;
+            var configService = new Catalyst.Core.Services.AppConfigurationService(configRepo, settings, pathResolver);
+
+            var iconRenderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+            var iconService = new Catalyst.Core.Services.IconManagementService(iconRenderer, configService);
+
+            // Create a fake project with a custom glyph svg file
+            string projDir = Path.Combine(tempDir, "Ghost");
+            Directory.CreateDirectory(projDir);
+            string csprojPath = Path.Combine(projDir, "Ghost.csproj");
+            File.WriteAllText(csprojPath, "<Project Sdk=\"Microsoft.NET.Sdk\"/>");
+
+            string customSvgFile = Path.Combine(tempDir, "custom-glyph.svg");
+            File.WriteAllText(customSvgFile, "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"10\" fill=\"#FFF\"/></svg>");
+
+            var app = new AppInfo
+            {
+                Name = "Ghost",
+                Color = "#9C27B0",
+                SecondaryColor = "#E91E63",
+                BackgroundType = "Gradient",
+                GradientDirection = "Diagonal",
+                Label = "GH",
+                ProjectPath = csprojPath,
+                CustomGlyphSvg = customSvgFile,
+                CustomGlyphColor = "#00FFFF",
+                BootstrapIcon = "send"
+            };
+
+            string exportedDir = iconService.ExportCatalystFolder(app);
+
+            // Verify exported folder location
+            string expectedDir = Path.Combine(projDir, ".catalyst");
+            Assert.Equal(expectedDir, exportedDir);
+            Assert.True(Directory.Exists(exportedDir));
+
+            // Verify app.yaml and catalyst.yaml exist and contain settings
+            string appYamlPath = Path.Combine(exportedDir, "app.yaml");
+            string catalystYamlPath = Path.Combine(exportedDir, "catalyst.yaml");
+            Assert.True(File.Exists(appYamlPath));
+            Assert.True(File.Exists(catalystYamlPath));
+
+            string appYamlText = File.ReadAllText(appYamlPath);
+            Assert.Contains("name: Ghost", appYamlText);
+            Assert.Contains("color: '#9C27B0'", appYamlText);
+            Assert.Contains("secondaryColor: '#E91E63'", appYamlText);
+            Assert.Contains("backgroundType: Gradient", appYamlText);
+            Assert.Contains("customGlyphSvg: assets/custom-glyph.svg", appYamlText);
+            Assert.Contains("customGlyphColor: '#00FFFF'", appYamlText);
+            Assert.Contains("bootstrapIcon: send", appYamlText);
+
+            // Verify copied asset in assets/
+            string copiedSvgPath = Path.Combine(exportedDir, "assets", "custom-glyph.svg");
+            Assert.True(File.Exists(copiedSvgPath));
+            Assert.Equal(File.ReadAllText(customSvgFile), File.ReadAllText(copiedSvgPath));
+
+            // Verify exported icons suite in icons/
+            Assert.True(File.Exists(Path.Combine(exportedDir, "icons", "Ghost.png")));
+            Assert.True(File.Exists(Path.Combine(exportedDir, "icons", "icon.png")));
+            Assert.True(File.Exists(Path.Combine(exportedDir, "icons", "Ghost.svg")));
+            Assert.True(File.Exists(Path.Combine(exportedDir, "icons", "icon.svg")));
+            Assert.True(File.Exists(Path.Combine(exportedDir, "icons", "favicon.ico")));
+            Assert.True(File.Exists(Path.Combine(exportedDir, "icons", "favicon-16x16.png")));
+            Assert.True(File.Exists(Path.Combine(exportedDir, "icons", "favicon-32x32.png")));
+            Assert.True(File.Exists(Path.Combine(exportedDir, "icons", "favicon-48x48.png")));
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void ExportCatalystFolder_ViaViewModel_WithInlineSvgAndCustomDirectory()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystVmMiniTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var configRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var settings = new Catalyst.Adapters.Persistence.JsonSettingsStorage(Path.Combine(tempDir, "settings.json"));
+            var pathResolver = new Catalyst.Adapters.Persistence.PathResolver(settings);
+            string configPath = Path.Combine(tempDir, "apps.yaml");
+            pathResolver.CustomConfigPath = configPath;
+            var configService = new Catalyst.Core.Services.AppConfigurationService(configRepo, settings, pathResolver);
+
+            var iconRenderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+            var iconService = new Catalyst.Core.Services.IconManagementService(iconRenderer, configService);
+            var hotkeyHook = new Catalyst.Adapters.Platform.WindowsHotkeyHook();
+            var hotkey = new Catalyst.Core.Services.HotkeyService(hotkeyHook);
+            var mockWindowService = new MockWindowService(() => { });
+
+            string customTargetDir = Path.Combine(tempDir, "MyCustomPack", ".catalyst");
+
+            var app = new AppInfo
+            {
+                Name = "Clipper",
+                Color = "#FF9800",
+                Label = "CL",
+                CatalystDirectory = customTargetDir,
+                CustomGlyphSvg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\"><path d=\"M1 1h14v14H1z\" fill=\"#fff\"/></svg>"
+            };
+
+            configService.SaveApps(new[] { app }, configPath);
+
+            var mgmtVm = new Catalyst.Adapters.UI.ViewModels.AppManagementViewModel(
+                configService, iconService, hotkey, mockWindowService);
+
+            string exported = mgmtVm.ExportCatalystFolder(app);
+            Assert.Equal(customTargetDir, exported);
+            Assert.True(File.Exists(Path.Combine(customTargetDir, "app.yaml")));
+            Assert.True(File.Exists(Path.Combine(customTargetDir, "assets", "custom-glyph.svg")));
+            Assert.True(File.Exists(Path.Combine(customTargetDir, "icons", "Clipper.png")));
+            Assert.True(File.Exists(Path.Combine(customTargetDir, "icons", "favicon.ico")));
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
     private class MockWindowService : Catalyst.Adapters.UI.Navigation.IWindowService
     {
         private readonly Action _onShowSettings;

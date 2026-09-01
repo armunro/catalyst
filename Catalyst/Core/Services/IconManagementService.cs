@@ -232,4 +232,332 @@ public class IconManagementService : IIconManagementService
             logger?.Invoke($"Failed to update csproj {projectPath}: {ex.Message}");
         }
     }
+
+    public string ExportCatalystFolder(AppInfo app, string? targetDirectory = null, Action<string>? logger = null)
+    {
+        string rootDir = _configurationService.RootDir;
+        string iconsBaseDir = _configurationService.IconsBaseDir;
+
+        // Determine destination directory
+        string destDir;
+        if (!string.IsNullOrWhiteSpace(targetDirectory))
+        {
+            destDir = Path.IsPathRooted(targetDirectory)
+                ? targetDirectory
+                : Path.GetFullPath(Path.Combine(rootDir, targetDirectory));
+        }
+        else if (!string.IsNullOrWhiteSpace(app.CatalystDirectory))
+        {
+            destDir = Path.IsPathRooted(app.CatalystDirectory)
+                ? app.CatalystDirectory
+                : Path.GetFullPath(Path.Combine(rootDir, app.CatalystDirectory));
+        }
+        else if (!string.IsNullOrWhiteSpace(app.ProjectPath))
+        {
+            string fullProj = Path.IsPathRooted(app.ProjectPath)
+                ? app.ProjectPath
+                : Path.GetFullPath(Path.Combine(rootDir, app.ProjectPath));
+
+            if (File.Exists(fullProj) ||
+                fullProj.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
+                fullProj.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) ||
+                fullProj.EndsWith(".fsproj", StringComparison.OrdinalIgnoreCase) ||
+                fullProj.EndsWith(".vbproj", StringComparison.OrdinalIgnoreCase) ||
+                fullProj.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+                fullProj.EndsWith(".bat", StringComparison.OrdinalIgnoreCase) ||
+                fullProj.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) ||
+                fullProj.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase))
+            {
+                destDir = Path.Combine(Path.GetDirectoryName(fullProj) ?? rootDir, ".catalyst");
+            }
+            else
+            {
+                destDir = Path.Combine(fullProj, ".catalyst");
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(app.WorkingDirectory))
+        {
+            string fullWork = Path.IsPathRooted(app.WorkingDirectory)
+                ? app.WorkingDirectory
+                : Path.GetFullPath(Path.Combine(rootDir, app.WorkingDirectory));
+            destDir = Path.Combine(fullWork, ".catalyst");
+        }
+        else
+        {
+            destDir = Path.Combine(rootDir, app.Name, ".catalyst");
+        }
+
+        string trimmed = destDir.TrimEnd('\\', '/');
+        if (!trimmed.EndsWith(".catalyst", StringComparison.OrdinalIgnoreCase))
+        {
+            destDir = Path.Combine(destDir, ".catalyst");
+        }
+
+        Directory.CreateDirectory(destDir);
+        string assetsDir = Path.Combine(destDir, "assets");
+        Directory.CreateDirectory(assetsDir);
+        string iconsDir = Path.Combine(destDir, "icons");
+        Directory.CreateDirectory(iconsDir);
+
+        logger?.Invoke($"Exporting .catalyst pack for '{app.Name}' to {destDir}...");
+
+        // 1. Generate & Export full suite of branding icons to .catalyst/icons/
+        using var mainBitmap = _iconRenderer.RenderIconBitmap(app, 512, iconsBaseDir, rootDir, logger);
+        string exportedMainPng = Path.Combine(iconsDir, $"{app.Name}.png");
+        string exportedIconPng = Path.Combine(iconsDir, "icon.png");
+        try
+        {
+            _iconRenderer.SavePng(mainBitmap, exportedMainPng);
+            _iconRenderer.SavePng(mainBitmap, exportedIconPng);
+        }
+        catch (Exception ex)
+        {
+            logger?.Invoke($"Warning saving PNG icons: {ex.Message}");
+        }
+
+        string exportedSvg = Path.Combine(iconsDir, $"{app.Name}.svg");
+        string exportedIconSvg = Path.Combine(iconsDir, "icon.svg");
+        try
+        {
+            _iconRenderer.SaveSvg(app, exportedSvg, 512, iconsBaseDir, rootDir, logger);
+            _iconRenderer.SaveSvg(app, exportedIconSvg, 512, iconsBaseDir, rootDir, logger);
+        }
+        catch (Exception ex)
+        {
+            logger?.Invoke($"Warning saving SVG icons: {ex.Message}");
+        }
+
+        int[] faviconSizes = { 16, 32, 48 };
+        var iconImages = new List<byte[]>();
+        var iconDimensions = new List<(int Width, int Height)>();
+
+        foreach (var fSize in faviconSizes)
+        {
+            using var sizeBitmap = _iconRenderer.RenderIconBitmap(app, fSize, iconsBaseDir, rootDir, logger);
+            if (sizeBitmap == null) continue;
+
+            string faviconPngPath = Path.Combine(iconsDir, $"favicon-{fSize}x{fSize}.png");
+            try
+            {
+                using var image = SKImage.FromBitmap(sizeBitmap);
+                using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+                using (var stream = new FileStream(faviconPngPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
+                {
+                    data.SaveTo(stream);
+                }
+                byte[] bytes = data.ToArray();
+                iconImages.Add(bytes);
+                iconDimensions.Add((fSize, fSize));
+            }
+            catch (Exception ex)
+            {
+                logger?.Invoke($"Warning saving favicon {fSize}x{fSize}: {ex.Message}");
+            }
+        }
+
+        string icoPath = Path.Combine(iconsDir, "favicon.ico");
+        try
+        {
+            if (iconImages.Count > 0)
+            {
+                _iconRenderer.SaveAsIco(iconImages, iconDimensions, icoPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.Invoke($"Warning saving favicon.ico: {ex.Message}");
+        }
+
+        // Also ensure default app icon exists in main icons folder if needed
+        string appIconDir = Path.Combine(iconsBaseDir, app.Name);
+        if (!Directory.Exists(appIconDir))
+        {
+            Directory.CreateDirectory(appIconDir);
+            try
+            {
+                File.Copy(exportedMainPng, Path.Combine(appIconDir, $"{app.Name}.png"), true);
+                File.Copy(exportedSvg, Path.Combine(appIconDir, $"{app.Name}.svg"), true);
+                if (File.Exists(icoPath)) File.Copy(icoPath, Path.Combine(appIconDir, "favicon.ico"), true);
+            }
+            catch { }
+        }
+
+        // 2. Package Input Assets (customGlyphSvg, svgOverride, iconPath)
+        string exportedGlyphSvgPath = string.Empty;
+        if (!string.IsNullOrWhiteSpace(app.CustomGlyphSvg))
+        {
+            if (app.CustomGlyphSvg.TrimStart().StartsWith("<"))
+            {
+                string inlineGlyphFile = Path.Combine(assetsDir, "custom-glyph.svg");
+                File.WriteAllText(inlineGlyphFile, app.CustomGlyphSvg);
+                exportedGlyphSvgPath = "assets/custom-glyph.svg";
+            }
+            else
+            {
+                string src = Path.IsPathRooted(app.CustomGlyphSvg)
+                    ? app.CustomGlyphSvg
+                    : Path.GetFullPath(Path.Combine(rootDir, app.CustomGlyphSvg));
+
+                if (File.Exists(src))
+                {
+                    string targetFileName = Path.GetFileName(src);
+                    string targetAssetPath = Path.Combine(assetsDir, targetFileName);
+                    File.Copy(src, targetAssetPath, true);
+                    exportedGlyphSvgPath = $"assets/{targetFileName}";
+                }
+                else
+                {
+                    exportedGlyphSvgPath = app.CustomGlyphSvg;
+                }
+            }
+        }
+
+        string exportedSvgOverridePath = string.Empty;
+        if (!string.IsNullOrWhiteSpace(app.SvgOverride))
+        {
+            if (app.SvgOverride.TrimStart().StartsWith("<"))
+            {
+                string inlineOverrideFile = Path.Combine(assetsDir, "svg-override.svg");
+                File.WriteAllText(inlineOverrideFile, app.SvgOverride);
+                exportedSvgOverridePath = "assets/svg-override.svg";
+            }
+            else
+            {
+                string src = Path.IsPathRooted(app.SvgOverride)
+                    ? app.SvgOverride
+                    : Path.GetFullPath(Path.Combine(rootDir, app.SvgOverride));
+
+                if (File.Exists(src))
+                {
+                    string targetFileName = Path.GetFileName(src);
+                    string targetAssetPath = Path.Combine(assetsDir, targetFileName);
+                    File.Copy(src, targetAssetPath, true);
+                    exportedSvgOverridePath = $"assets/{targetFileName}";
+                }
+                else
+                {
+                    exportedSvgOverridePath = app.SvgOverride;
+                }
+            }
+        }
+
+        string exportedCustomIconPath = string.Empty;
+        if (!string.IsNullOrWhiteSpace(app.IconPath))
+        {
+            string src = Path.IsPathRooted(app.IconPath)
+                ? app.IconPath
+                : Path.GetFullPath(Path.Combine(rootDir, app.IconPath));
+
+            if (File.Exists(src) && !src.StartsWith(iconsDir, StringComparison.OrdinalIgnoreCase))
+            {
+                string targetFileName = Path.GetFileName(src);
+                string targetAssetPath = Path.Combine(assetsDir, targetFileName);
+                File.Copy(src, targetAssetPath, true);
+                exportedCustomIconPath = $"assets/{targetFileName}";
+            }
+            else
+            {
+                exportedCustomIconPath = $"icons/{app.Name}.png";
+            }
+        }
+        else
+        {
+            exportedCustomIconPath = $"icons/{app.Name}.png";
+        }
+
+        // 3. Package Configuration into app.yaml and catalyst.yaml
+        string projectDir = Path.GetDirectoryName(destDir) ?? rootDir;
+        string relProjectPath = app.ProjectPath;
+        if (!string.IsNullOrEmpty(relProjectPath))
+        {
+            string fullProj = Path.IsPathRooted(relProjectPath) ? relProjectPath : Path.GetFullPath(Path.Combine(rootDir, relProjectPath));
+            if (fullProj.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            {
+                relProjectPath = Path.GetRelativePath(projectDir, fullProj);
+            }
+        }
+
+        string relExecPath = app.ExecutablePath;
+        if (!string.IsNullOrEmpty(relExecPath) && !relExecPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && !relExecPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            string fullExec = Path.IsPathRooted(relExecPath) ? relExecPath : Path.GetFullPath(Path.Combine(rootDir, relExecPath));
+            if (fullExec.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            {
+                relExecPath = Path.GetRelativePath(projectDir, fullExec);
+            }
+        }
+
+        string relWorkDir = app.WorkingDirectory;
+        if (!string.IsNullOrEmpty(relWorkDir))
+        {
+            string fullWork = Path.IsPathRooted(relWorkDir) ? relWorkDir : Path.GetFullPath(Path.Combine(rootDir, relWorkDir));
+            if (fullWork.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            {
+                relWorkDir = Path.GetRelativePath(projectDir, fullWork);
+            }
+        }
+
+        string relFaviconPath = app.FaviconPath;
+        if (!string.IsNullOrEmpty(relFaviconPath))
+        {
+            string fullFav = Path.IsPathRooted(relFaviconPath) ? relFaviconPath : Path.GetFullPath(Path.Combine(rootDir, relFaviconPath));
+            if (fullFav.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            {
+                relFaviconPath = Path.GetRelativePath(projectDir, fullFav);
+            }
+        }
+
+        var entry = new AppConfigEntry
+        {
+            Name = app.Name,
+            Hidden = app.IsHidden,
+            CatalystDirectory = ".",
+            Launch = new LaunchConfig
+            {
+                ProjectPath = relProjectPath,
+                ExecutablePath = relExecPath,
+                Arguments = app.Arguments,
+                WorkingDirectory = relWorkDir,
+                RunAsAdmin = app.RunAsAdmin
+            },
+            Icon = new IconConfig
+            {
+                Color = app.Color,
+                SecondaryColor = app.SecondaryColor,
+                BackgroundType = app.BackgroundType,
+                GradientDirection = app.GradientDirection,
+                Label = app.Label,
+                BootstrapIcon = app.BootstrapIcon,
+                CustomGlyphSvg = exportedGlyphSvgPath,
+                CustomGlyphColor = app.CustomGlyphColor,
+                SvgOverride = exportedSvgOverridePath,
+                IconPath = exportedCustomIconPath,
+                FaviconPath = relFaviconPath
+            }
+        };
+
+        var serializer = new YamlDotNet.Serialization.SerializerBuilder()
+            .WithNamingConvention(YamlDotNet.Serialization.NamingConventions.CamelCaseNamingConvention.Instance)
+            .Build();
+
+        string appYaml = serializer.Serialize(entry);
+        File.WriteAllText(Path.Combine(destDir, "app.yaml"), appYaml);
+        File.WriteAllText(Path.Combine(destDir, "catalyst.yaml"), appYaml);
+
+        // Update app's CatalystDirectory property if not already set
+        if (string.IsNullOrWhiteSpace(app.CatalystDirectory))
+        {
+            if (destDir.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
+            {
+                app.CatalystDirectory = Path.GetRelativePath(rootDir, destDir);
+            }
+            else
+            {
+                app.CatalystDirectory = destDir;
+            }
+        }
+
+        logger?.Invoke($"Successfully exported .catalyst folder for '{app.Name}' to {destDir}");
+        return destDir;
+    }
 }

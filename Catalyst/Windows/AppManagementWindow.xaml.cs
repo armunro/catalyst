@@ -107,10 +107,8 @@ public partial class AppManagementWindow : FluentWindow
 
     private void UpdateReorderButtonStates()
     {
-        if (BtnMoveUp == null || BtnMoveDown == null || BtnRemove == null) return;
+        if (BtnRemove == null) return;
         int index = LstApps.SelectedIndex;
-        BtnMoveUp.IsEnabled = index > 0;
-        BtnMoveDown.IsEnabled = index >= 0 && index < _viewModel.Apps.Count - 1;
         BtnRemove.IsEnabled = index >= 0;
     }
 
@@ -136,6 +134,7 @@ public partial class AppManagementWindow : FluentWindow
             TxtGlyphColor.Text = app.CustomGlyphColor;
             TxtLabel.Text = app.Label;
             TxtFaviconPath.Text = app.FaviconPath;
+            TxtCatalystDirectory.Text = app.CatalystDirectory;
             TxtBootstrapIcon.Text = app.BootstrapIcon;
             TxtCustomGlyphSvg.Text = app.CustomGlyphSvg;
             TxtSvgOverride.Text = app.SvgOverride;
@@ -163,6 +162,7 @@ public partial class AppManagementWindow : FluentWindow
             TxtGlyphColor.Text = "";
             TxtLabel.Text = "";
             TxtFaviconPath.Text = "";
+            TxtCatalystDirectory.Text = "";
             TxtBootstrapIcon.Text = "";
             TxtCustomGlyphSvg.Text = "";
             TxtSvgOverride.Text = "";
@@ -263,6 +263,7 @@ public partial class AppManagementWindow : FluentWindow
         else if (sender == TxtGlyphColor) { app.CustomGlyphColor = TxtGlyphColor.Text; UpdateColorPreviews(); }
         else if (sender == TxtLabel) app.Label = TxtLabel.Text;
         else if (sender == TxtFaviconPath) app.FaviconPath = TxtFaviconPath.Text;
+        else if (sender == TxtCatalystDirectory) app.CatalystDirectory = TxtCatalystDirectory.Text;
         else if (sender == TxtBootstrapIcon) app.BootstrapIcon = TxtBootstrapIcon.Text;
         else if (sender == TxtCustomGlyphSvg) app.CustomGlyphSvg = TxtCustomGlyphSvg.Text;
         else if (sender == TxtSvgOverride) app.SvgOverride = TxtSvgOverride.Text;
@@ -534,6 +535,38 @@ public partial class AppManagementWindow : FluentWindow
         }
     }
 
+    private void BtnBrowseCatalystDir_Click(object sender, RoutedEventArgs e)
+    {
+        if (LstApps.SelectedItem is not AppInfo app) return;
+
+        string rootDir = RootDir;
+        string initialDir = !string.IsNullOrWhiteSpace(app.CatalystDirectory)
+            ? (Path.IsPathRooted(app.CatalystDirectory) ? app.CatalystDirectory : Path.GetFullPath(Path.Combine(rootDir, app.CatalystDirectory)))
+            : rootDir;
+
+        if (!Directory.Exists(initialDir))
+        {
+            initialDir = rootDir;
+        }
+
+        using var dialog = new FolderBrowserDialog
+        {
+            Description = "Select .catalyst Directory or Project Directory",
+            SelectedPath = initialDir,
+            UseDescriptionForTitle = true
+        };
+
+        if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+        {
+            string path = dialog.SelectedPath;
+            if (path.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
+            {
+                path = Path.GetRelativePath(rootDir, path);
+            }
+            TxtCatalystDirectory.Text = path;
+        }
+    }
+
     private void BtnRegenerateCurrent_Click(object sender, RoutedEventArgs e)
     {
         if (LstApps.SelectedItem is not AppInfo app) return;
@@ -580,16 +613,6 @@ public partial class AppManagementWindow : FluentWindow
             _viewModel.DeleteApp(app);
             UpdateReorderButtonStates();
         }
-    }
-
-    private void BtnMoveUp_Click(object sender, RoutedEventArgs e)
-    {
-        MoveSelectedAppUp();
-    }
-
-    private void BtnMoveDown_Click(object sender, RoutedEventArgs e)
-    {
-        MoveSelectedAppDown();
     }
 
     private void MoveSelectedAppUp()
@@ -853,6 +876,49 @@ public partial class AppManagementWindow : FluentWindow
         finally
         {
             if (BtnUpdateCurrentFavicon != null) BtnUpdateCurrentFavicon.IsEnabled = true;
+            BtnGenerate.IsEnabled = true;
+        }
+    }
+
+    private async void BtnExportCatalyst_Click(object sender, RoutedEventArgs e)
+    {
+        if (LstApps.SelectedItem is not AppInfo app) return;
+
+        if (BtnExportCatalyst != null) BtnExportCatalyst.IsEnabled = false;
+        BtnGenerate.IsEnabled = false;
+        LblGenesisStatus.Text = $"Exporting .catalyst pack for {app.Name}...";
+        LblGenesisStatus.Foreground = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#58A6FF"));
+
+        try
+        {
+            _viewModel.SaveConfig();
+
+            string exportedPath = string.Empty;
+            Action<string> logger = message => Debug.WriteLine(message);
+            await Task.Run(() =>
+            {
+                exportedPath = _viewModel.ExportCatalystFolder(app, null, logger);
+            });
+
+            if (!string.IsNullOrEmpty(exportedPath))
+            {
+                _viewModel.SaveConfig();
+                TxtCatalystDirectory.Text = app.CatalystDirectory ?? string.Empty;
+
+                LblGenesisStatus.Text = $"Exported .catalyst for {app.Name}";
+                LblGenesisStatus.Foreground = System.Windows.Media.Brushes.Green;
+                System.Windows.MessageBox.Show($"Successfully exported .catalyst folder for '{app.Name}' to:\n{exportedPath}", "Catalyst");
+            }
+        }
+        catch (Exception ex)
+        {
+            LblGenesisStatus.Text = "Error exporting";
+            LblGenesisStatus.Foreground = System.Windows.Media.Brushes.Red;
+            System.Windows.MessageBox.Show($"Error exporting .catalyst folder: {ex.Message}", "Catalyst");
+        }
+        finally
+        {
+            if (BtnExportCatalyst != null) BtnExportCatalyst.IsEnabled = true;
             BtnGenerate.IsEnabled = true;
         }
     }

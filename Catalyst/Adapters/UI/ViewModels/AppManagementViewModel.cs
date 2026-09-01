@@ -246,6 +246,15 @@ public class AppManagementViewModel : INotifyPropertyChanged
         return _iconService.UpdateProjectFavicon(app, logger);
     }
 
+    public string ExportCatalystFolder(AppInfo? app = null, string? targetDirectory = null, Action<string>? logger = null)
+    {
+        app ??= SelectedApp;
+        if (app == null) throw new InvalidOperationException("No application selected to export .catalyst folder.");
+        string path = _iconService.ExportCatalystFolder(app, targetDirectory, logger);
+        SaveConfig();
+        return path;
+    }
+
     public void ShowIconsResult(System.Windows.Window? owner = null)
     {
         string iconsDir = _configService.IconsBaseDir;

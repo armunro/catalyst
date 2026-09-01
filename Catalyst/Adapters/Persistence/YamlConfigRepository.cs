@@ -91,6 +91,7 @@ public class YamlConfigRepository : IConfigRepository
             foreach (var app in config.Apps)
             {
                 if (!string.IsNullOrWhiteSpace(app.Name)) score += 5;
+                if (!string.IsNullOrWhiteSpace(app.CatalystDirectory)) score += 2;
                 if (!string.IsNullOrWhiteSpace(app.Launch?.ProjectPath)) score += 5;
                 if (!string.IsNullOrWhiteSpace(app.Launch?.ExecutablePath)) score += 5;
                 if (!string.IsNullOrWhiteSpace(app.Launch?.Arguments)) score += 2;

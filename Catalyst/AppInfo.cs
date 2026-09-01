@@ -37,6 +37,7 @@ public class AppInfo : INotifyPropertyChanged
     private string _customGlyphColor = string.Empty;
     private string _svgOverride = string.Empty;
     private string _iconPath = string.Empty;
+    private string _catalystDirectory = string.Empty;
     private string _shortcutIndex = string.Empty;
     private bool _isHidden = false;
     private Process? _process;
@@ -335,6 +336,12 @@ public class AppInfo : INotifyPropertyChanged
     {
         get => _faviconPath;
         set { _faviconPath = value; OnPropertyChanged(); }
+    }
+
+    public string CatalystDirectory
+    {
+        get => _catalystDirectory;
+        set { _catalystDirectory = value; OnPropertyChanged(); }
     }
 
     public string BootstrapIcon
