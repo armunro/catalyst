@@ -397,11 +397,10 @@ public partial class AppManagementWindow : FluentWindow
     {
         try
         {
-            var preview = _viewModel.RenderPreview(app);
-            if (preview != null)
-            {
-                app.PreviewSource = preview;
-            }
+            app.LivePreviewSource = _viewModel.RenderPreview(app, 512);
+            app.LivePreviewSource48 = _viewModel.RenderPreview(app, 48);
+            app.LivePreviewSource32 = _viewModel.RenderPreview(app, 32);
+            app.LivePreviewSource16 = _viewModel.RenderPreview(app, 16);
         }
         catch (Exception ex)
         {
@@ -577,8 +576,7 @@ public partial class AppManagementWindow : FluentWindow
 
             _viewModel.GenerateIcon(app, (msg) => Debug.WriteLine(msg));
 
-            string rootDir = RootDir;
-            string iconPath = Path.Combine(rootDir, "icons", app.Name, $"{app.Name}.png");
+            string iconPath = Path.Combine(_viewModel.IconsBaseDir, app.Name, $"{app.Name}.png");
             if (File.Exists(iconPath))
             {
                 app.IconPath = iconPath;
@@ -793,15 +791,6 @@ public partial class AppManagementWindow : FluentWindow
                     app.IconPath = iconPath;
                 }
                 app.RefreshIcons();
-
-                if (string.IsNullOrEmpty(app.IconPath) || !File.Exists(app.IconPath))
-                {
-                    var preview = _viewModel.RenderPreview(app);
-                    if (preview != null)
-                    {
-                        app.PreviewSource = preview;
-                    }
-                }
             }
 
             _viewModel.SaveConfig();

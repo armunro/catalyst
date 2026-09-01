@@ -41,7 +41,10 @@ public class AppInfo : INotifyPropertyChanged
     private string _shortcutIndex = string.Empty;
     private bool _isHidden = false;
     private Process? _process;
-    private BitmapSource? _previewSource;
+    private BitmapSource? _livePreviewSource;
+    private BitmapSource? _livePreviewSource48;
+    private BitmapSource? _livePreviewSource32;
+    private BitmapSource? _livePreviewSource16;
 
     public string Name 
     { 
@@ -405,32 +408,81 @@ public class AppInfo : INotifyPropertyChanged
             OnPropertyChanged(nameof(IconSource16));
             OnPropertyChanged(nameof(IconSource32));
             OnPropertyChanged(nameof(IconSource48));
+            OnPropertyChanged(nameof(GeneratedIconSource));
+            OnPropertyChanged(nameof(GeneratedIconSource16));
+            OnPropertyChanged(nameof(GeneratedIconSource32));
+            OnPropertyChanged(nameof(GeneratedIconSource48));
+            OnPropertyChanged(nameof(HasGeneratedIcon));
         }
     }
 
-    public BitmapSource? PreviewSource
+    public bool HasGeneratedIcon => !string.IsNullOrEmpty(IconPath) && File.Exists(IconPath);
+
+    public BitmapSource? LivePreviewSource
     {
-        get => _previewSource;
+        get => _livePreviewSource;
         set
         {
-            _previewSource = value;
+            _livePreviewSource = value;
             OnPropertyChanged();
-            OnPropertyChanged(nameof(IconSource));
-            OnPropertyChanged(nameof(IconSource16));
-            OnPropertyChanged(nameof(IconSource32));
-            OnPropertyChanged(nameof(IconSource48));
+            OnPropertyChanged(nameof(PreviewSource));
+            OnPropertyChanged(nameof(LivePreviewSource48));
+            OnPropertyChanged(nameof(LivePreviewSource32));
+            OnPropertyChanged(nameof(LivePreviewSource16));
         }
     }
 
-    public BitmapSource? IconSource => PreviewSource ?? LoadIcon(IconPath);
+    public BitmapSource? LivePreviewSource48
+    {
+        get => _livePreviewSource48 ?? _livePreviewSource;
+        set
+        {
+            _livePreviewSource48 = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public BitmapSource? LivePreviewSource32
+    {
+        get => _livePreviewSource32 ?? _livePreviewSource;
+        set
+        {
+            _livePreviewSource32 = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public BitmapSource? LivePreviewSource16
+    {
+        get => _livePreviewSource16 ?? _livePreviewSource;
+        set
+        {
+            _livePreviewSource16 = value;
+            OnPropertyChanged();
+        }
+    }
+
+    // Alias for backwards compatibility
+    public BitmapSource? PreviewSource
+    {
+        get => LivePreviewSource;
+        set => LivePreviewSource = value;
+    }
+
+    // Generated icons loaded strictly from disk
+    public BitmapSource? IconSource => LoadIcon(IconPath);
 
     public BitmapSource? IconSource16 => LoadSpecificSizeIcon(16);
     public BitmapSource? IconSource32 => LoadSpecificSizeIcon(32);
     public BitmapSource? IconSource48 => LoadSpecificSizeIcon(48);
 
+    public BitmapSource? GeneratedIconSource => IconSource;
+    public BitmapSource? GeneratedIconSource16 => IconSource16;
+    public BitmapSource? GeneratedIconSource32 => IconSource32;
+    public BitmapSource? GeneratedIconSource48 => IconSource48;
+
     private BitmapSource? LoadSpecificSizeIcon(int size)
     {
-        if (PreviewSource != null) return PreviewSource;
         if (string.IsNullOrEmpty(IconPath)) return null;
         
         string dir = Path.GetDirectoryName(IconPath) ?? string.Empty;
@@ -441,7 +493,7 @@ public class AppInfo : INotifyPropertyChanged
             return LoadIcon(specificPath);
         }
         
-        return IconSource;
+        return LoadIcon(IconPath);
     }
 
     private BitmapSource? LoadIcon(string path)
@@ -470,11 +522,15 @@ public class AppInfo : INotifyPropertyChanged
 
     public void RefreshIcons()
     {
-        _previewSource = null;
         OnPropertyChanged(nameof(IconSource));
         OnPropertyChanged(nameof(IconSource16));
         OnPropertyChanged(nameof(IconSource32));
         OnPropertyChanged(nameof(IconSource48));
+        OnPropertyChanged(nameof(GeneratedIconSource));
+        OnPropertyChanged(nameof(GeneratedIconSource16));
+        OnPropertyChanged(nameof(GeneratedIconSource32));
+        OnPropertyChanged(nameof(GeneratedIconSource48));
+        OnPropertyChanged(nameof(HasGeneratedIcon));
     }
 
     public bool IsRunning 

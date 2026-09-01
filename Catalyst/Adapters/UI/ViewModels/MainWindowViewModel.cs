@@ -99,14 +99,6 @@ public class MainWindowViewModel : INotifyPropertyChanged
         var loaded = _configService.LoadApps(customPath);
         foreach (var app in loaded)
         {
-            if (_iconService != null && (string.IsNullOrEmpty(app.IconPath) || !File.Exists(app.IconPath)))
-            {
-                var preview = _iconService.RenderPreview(app);
-                if (preview != null)
-                {
-                    app.PreviewSource = preview;
-                }
-            }
             app.PropertyChanged += App_PropertyChanged;
             Apps.Add(app);
         }

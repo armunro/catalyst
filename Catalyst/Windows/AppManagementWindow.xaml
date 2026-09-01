@@ -198,7 +198,7 @@
                         </StackPanel>
                     </Grid>
 
-                    <!-- Dedicated Live Previews Section -->
+                    <!-- Dedicated Previews Section: Live vs Generated -->
                     <Border Grid.Row="1" Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,14">
                         <StackPanel>
                             <Grid Margin="0,0,0,10">
@@ -207,8 +207,8 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="LIVE PREVIEWS" FontSize="11" FontWeight="Bold" Foreground="#60A5FA"/>
-                                    <TextBlock Text="Real-time multi-resolution icon generation previews" FontSize="11" Foreground="#94A3B8" Margin="0,2,0,0"/>
+                                    <TextBlock Text="ICON PREVIEWS" FontSize="11" FontWeight="Bold" Foreground="#60A5FA"/>
+                                    <TextBlock Text="Compare real-time configuration changes with saved generated icons" FontSize="11" Foreground="#94A3B8" Margin="0,2,0,0"/>
                                 </StackPanel>
                                 <ui:Button Name="BtnRegenerateCurrent" Grid.Column="1" Content="Generate This Icon"
                                            Icon="{ui:SymbolIcon ArrowClockwise16}"
@@ -216,45 +216,106 @@
                                            Click="BtnRegenerateCurrent_Click"/>
                             </Grid>
 
-                            <Border Background="#08FFFFFF" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="6" Padding="10">
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                                    <StackPanel Margin="0,0,24,0" HorizontalAlignment="Center">
-                                        <TextBlock Text="512x512" Foreground="#94A3B8" FontSize="11" Margin="0,0,0,6" HorizontalAlignment="Center"/>
-                                        <Border Width="80" Height="80" Background="Transparent" CornerRadius="8" ClipToBounds="True">
-                                            <Image Source="{Binding SelectedItem.IconSource, ElementName=LstApps}" Stretch="Uniform"
-                                                   RenderOptions.BitmapScalingMode="HighQuality"
-                                                   RenderOptions.EdgeMode="Unspecified"/>
-                                        </Border>
-                                    </StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-                                    <StackPanel VerticalAlignment="Bottom" Margin="0,0,20,0" HorizontalAlignment="Center">
-                                        <TextBlock Text="48x48" Foreground="#94A3B8" FontSize="11" Margin="0,0,0,6" HorizontalAlignment="Center"/>
-                                        <Border Width="48" Height="48" Background="Transparent" CornerRadius="6" ClipToBounds="True">
-                                            <Image Source="{Binding SelectedItem.IconSource48, ElementName=LstApps}" Stretch="Uniform"
-                                                   RenderOptions.BitmapScalingMode="HighQuality"
-                                                   RenderOptions.EdgeMode="Unspecified"/>
-                                        </Border>
-                                    </StackPanel>
+                                <!-- Live Previews Box -->
+                                <Border Grid.Column="0" Background="#08FFFFFF" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,6,0">
+                                    <StackPanel>
+                                        <DockPanel Margin="0,0,0,8">
+                                            <TextBlock Text="Live" FontWeight="Bold" FontSize="11" Foreground="#38BDF8"/>
+                                            <TextBlock Text="(Live changes)" FontSize="10" Foreground="#64748B" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                        </DockPanel>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                            <StackPanel Margin="0,0,16,0" HorizontalAlignment="Center">
+                                                <TextBlock Text="512x512" Foreground="#94A3B8" FontSize="10" Margin="0,0,0,4" HorizontalAlignment="Center"/>
+                                                <Border Width="64" Height="64" Background="#0FFFFFFF" CornerRadius="8" ClipToBounds="True">
+                                                    <Image Source="{Binding SelectedItem.LivePreviewSource, ElementName=LstApps}" Stretch="Uniform"
+                                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                                           RenderOptions.EdgeMode="Unspecified"/>
+                                                </Border>
+                                            </StackPanel>
 
-                                    <StackPanel VerticalAlignment="Bottom" Margin="0,0,20,0" HorizontalAlignment="Center">
-                                        <TextBlock Text="32x32" Foreground="#94A3B8" FontSize="11" Margin="0,0,0,6" HorizontalAlignment="Center"/>
-                                        <Border Width="32" Height="32" Background="Transparent" CornerRadius="4" ClipToBounds="True">
-                                            <Image Source="{Binding SelectedItem.IconSource32, ElementName=LstApps}" Stretch="Uniform"
-                                                   RenderOptions.BitmapScalingMode="HighQuality"
-                                                   RenderOptions.EdgeMode="Unspecified"/>
-                                        </Border>
-                                    </StackPanel>
+                                            <StackPanel VerticalAlignment="Bottom" Margin="0,0,14,0" HorizontalAlignment="Center">
+                                                <TextBlock Text="48x48" Foreground="#94A3B8" FontSize="10" Margin="0,0,0,4" HorizontalAlignment="Center"/>
+                                                <Border Width="48" Height="48" Background="#0FFFFFFF" CornerRadius="6" ClipToBounds="True">
+                                                    <Image Source="{Binding SelectedItem.LivePreviewSource48, ElementName=LstApps}" Stretch="Uniform"
+                                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                                           RenderOptions.EdgeMode="Unspecified"/>
+                                                </Border>
+                                            </StackPanel>
 
-                                    <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Center">
-                                        <TextBlock Text="16x16" Foreground="#94A3B8" FontSize="11" Margin="0,0,0,6" HorizontalAlignment="Center"/>
-                                        <Border Width="16" Height="16" Background="Transparent" CornerRadius="3" ClipToBounds="True">
-                                            <Image Source="{Binding SelectedItem.IconSource16, ElementName=LstApps}" Stretch="Uniform"
-                                                   RenderOptions.BitmapScalingMode="HighQuality"
-                                                   RenderOptions.EdgeMode="Unspecified"/>
-                                        </Border>
+                                            <StackPanel VerticalAlignment="Bottom" Margin="0,0,14,0" HorizontalAlignment="Center">
+                                                <TextBlock Text="32x32" Foreground="#94A3B8" FontSize="10" Margin="0,0,0,4" HorizontalAlignment="Center"/>
+                                                <Border Width="32" Height="32" Background="#0FFFFFFF" CornerRadius="4" ClipToBounds="True">
+                                                    <Image Source="{Binding SelectedItem.LivePreviewSource32, ElementName=LstApps}" Stretch="Uniform"
+                                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                                           RenderOptions.EdgeMode="Unspecified"/>
+                                                </Border>
+                                            </StackPanel>
+
+                                            <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Center">
+                                                <TextBlock Text="16x16" Foreground="#94A3B8" FontSize="10" Margin="0,0,0,4" HorizontalAlignment="Center"/>
+                                                <Border Width="16" Height="16" Background="#0FFFFFFF" CornerRadius="3" ClipToBounds="True">
+                                                    <Image Source="{Binding SelectedItem.LivePreviewSource16, ElementName=LstApps}" Stretch="Uniform"
+                                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                                           RenderOptions.EdgeMode="Unspecified"/>
+                                                </Border>
+                                            </StackPanel>
+                                        </StackPanel>
                                     </StackPanel>
-                                </StackPanel>
-                            </Border>
+                                </Border>
+
+                                <!-- Generated Previews Box -->
+                                <Border Grid.Column="1" Background="#08FFFFFF" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="6" Padding="10" Margin="6,0,0,0">
+                                    <StackPanel>
+                                        <DockPanel Margin="0,0,0,8">
+                                            <TextBlock Text="Generated" FontWeight="Bold" FontSize="11" Foreground="#34D399"/>
+                                            <TextBlock Text="(Saved icons)" FontSize="10" Foreground="#64748B" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                        </DockPanel>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                            <StackPanel Margin="0,0,16,0" HorizontalAlignment="Center">
+                                                <TextBlock Text="512x512" Foreground="#94A3B8" FontSize="10" Margin="0,0,0,4" HorizontalAlignment="Center"/>
+                                                <Border Width="64" Height="64" Background="#0FFFFFFF" CornerRadius="8" ClipToBounds="True">
+                                                    <Image Source="{Binding SelectedItem.IconSource, ElementName=LstApps}" Stretch="Uniform"
+                                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                                           RenderOptions.EdgeMode="Unspecified"/>
+                                                </Border>
+                                            </StackPanel>
+
+                                            <StackPanel VerticalAlignment="Bottom" Margin="0,0,14,0" HorizontalAlignment="Center">
+                                                <TextBlock Text="48x48" Foreground="#94A3B8" FontSize="10" Margin="0,0,0,4" HorizontalAlignment="Center"/>
+                                                <Border Width="48" Height="48" Background="#0FFFFFFF" CornerRadius="6" ClipToBounds="True">
+                                                    <Image Source="{Binding SelectedItem.IconSource48, ElementName=LstApps}" Stretch="Uniform"
+                                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                                           RenderOptions.EdgeMode="Unspecified"/>
+                                                </Border>
+                                            </StackPanel>
+
+                                            <StackPanel VerticalAlignment="Bottom" Margin="0,0,14,0" HorizontalAlignment="Center">
+                                                <TextBlock Text="32x32" Foreground="#94A3B8" FontSize="10" Margin="0,0,0,4" HorizontalAlignment="Center"/>
+                                                <Border Width="32" Height="32" Background="#0FFFFFFF" CornerRadius="4" ClipToBounds="True">
+                                                    <Image Source="{Binding SelectedItem.IconSource32, ElementName=LstApps}" Stretch="Uniform"
+                                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                                           RenderOptions.EdgeMode="Unspecified"/>
+                                                </Border>
+                                            </StackPanel>
+
+                                            <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Center">
+                                                <TextBlock Text="16x16" Foreground="#94A3B8" FontSize="10" Margin="0,0,0,4" HorizontalAlignment="Center"/>
+                                                <Border Width="16" Height="16" Background="#0FFFFFFF" CornerRadius="3" ClipToBounds="True">
+                                                    <Image Source="{Binding SelectedItem.IconSource16, ElementName=LstApps}" Stretch="Uniform"
+                                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                                           RenderOptions.EdgeMode="Unspecified"/>
+                                                </Border>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
                         </StackPanel>
                     </Border>
 

@@ -108,14 +108,6 @@ public class AppManagementViewModel : INotifyPropertyChanged
         {
             foreach (var app in initialApps)
             {
-                if (string.IsNullOrEmpty(app.IconPath) || !File.Exists(app.IconPath))
-                {
-                    var preview = _iconService.RenderPreview(app);
-                    if (preview != null)
-                    {
-                        app.PreviewSource = preview;
-                    }
-                }
                 Apps.Add(app);
             }
         }
@@ -124,14 +116,6 @@ public class AppManagementViewModel : INotifyPropertyChanged
             var loaded = _configService.LoadApps(ConfigFilePath);
             foreach (var app in loaded)
             {
-                if (string.IsNullOrEmpty(app.IconPath) || !File.Exists(app.IconPath))
-                {
-                    var preview = _iconService.RenderPreview(app);
-                    if (preview != null)
-                    {
-                        app.PreviewSource = preview;
-                    }
-                }
                 Apps.Add(app);
             }
         }
@@ -224,9 +208,9 @@ public class AppManagementViewModel : INotifyPropertyChanged
         _configService.SaveApps(Apps, ConfiguredHotkey, ConfigFilePath);
     }
 
-    public BitmapSource? RenderPreview(AppInfo app)
+    public BitmapSource? RenderPreview(AppInfo app, int size = 512)
     {
-        return _iconService.RenderPreview(app);
+        return _iconService.RenderPreview(app, size);
     }
 
     public void GenerateIcon(AppInfo app, Action<string>? logger = null)

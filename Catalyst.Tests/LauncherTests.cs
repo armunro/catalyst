@@ -1542,7 +1542,7 @@ apps:
     }
 
     [Fact]
-    public void MainWindowViewModel_LoadApps_GeneratesPreviewsWhenIconsMissingOnDisk()
+    public void MainWindowViewModel_LoadApps_ShowsOnlyGeneratedIconsFromDisk()
     {
         string tempDir = Path.Combine(Path.GetTempPath(), "CatalystMainVmTest_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
@@ -1583,7 +1583,16 @@ apps:
 
             Assert.Single(mainVm.Apps);
             var app = mainVm.Apps[0];
-            Assert.NotNull(app.PreviewSource);
+            Assert.Null(app.IconSource);
+            Assert.Null(app.IconSource32);
+
+            // Generate icon
+            iconService.GenerateIcon(app);
+            string iconPath = Path.Combine(tempDir, "icons", app.Name, $"{app.Name}.png");
+            app.IconPath = iconPath;
+            app.RefreshIcons();
+
+            Assert.NotNull(app.IconSource);
             Assert.NotNull(app.IconSource32);
         }
         finally
@@ -1624,8 +1633,14 @@ apps:
             mgmtVm.Initialize(null, "Alt+Space", configPath);
 
             Assert.Equal(2, mgmtVm.Apps.Count);
-            Assert.NotNull(mgmtVm.Apps[0].PreviewSource);
-            Assert.NotNull(mgmtVm.Apps[1].PreviewSource);
+            Assert.Null(mgmtVm.Apps[0].IconSource32);
+            Assert.Null(mgmtVm.Apps[1].IconSource32);
+
+            // Render live preview for selected app
+            var livePreview = mgmtVm.RenderPreview(mgmtVm.Apps[0]);
+            mgmtVm.Apps[0].LivePreviewSource = livePreview;
+            Assert.NotNull(mgmtVm.Apps[0].LivePreviewSource);
+            Assert.Null(mgmtVm.Apps[0].IconSource32);
 
             // Generate all icons
             mgmtVm.GenerateAllIcons();
@@ -1653,6 +1668,95 @@ apps:
         {
             try { Directory.Delete(tempDir, true); } catch { }
         }
+    }
+
+    [Fact]
+    public void AppInfo_LivePreviewVsGeneratedIcon_RemainIndependent()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystLiveGenTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var mockConfigRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var mockSettings = new Catalyst.Adapters.Persistence.JsonSettingsStorage(Path.Combine(tempDir, "settings.json"));
+            var mockPathResolver = new Catalyst.Adapters.Persistence.PathResolver(mockSettings);
+            string configPath = Path.Combine(tempDir, "catalyst.yaml");
+            mockPathResolver.CustomConfigPath = configPath;
+            var configService = new Catalyst.Core.Services.AppConfigurationService(mockConfigRepo, mockSettings, mockPathResolver);
+
+            var renderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+            var iconService = new Catalyst.Core.Services.IconManagementService(renderer, configService);
+
+            var app = new AppInfo { Name = "LiveApp", Color = "#112233", Label = "LA" };
+            iconService.GenerateIcon(app);
+
+            string initialIconPath = Path.Combine(tempDir, "icons", "LiveApp", "LiveApp.png");
+            Assert.True(File.Exists(initialIconPath));
+            app.IconPath = initialIconPath;
+            app.RefreshIcons();
+
+            Assert.NotNull(app.IconSource);
+            Assert.NotNull(app.IconSource32);
+
+            // User modifies live settings (e.g. changes color and glyph)
+            app.Color = "#FF00FF";
+            app.BootstrapIcon = "bi-gear";
+            var newLivePreview = iconService.RenderPreview(app, 512);
+            app.LivePreviewSource = newLivePreview;
+            app.LivePreviewSource48 = iconService.RenderPreview(app, 48);
+            app.LivePreviewSource32 = iconService.RenderPreview(app, 32);
+            app.LivePreviewSource16 = iconService.RenderPreview(app, 16);
+
+            // Live preview is updated
+            Assert.NotNull(app.LivePreviewSource);
+            Assert.NotNull(app.LivePreviewSource48);
+            Assert.NotNull(app.LivePreviewSource32);
+            Assert.NotNull(app.LivePreviewSource16);
+
+            // Generated icon is STILL the original generated icon from disk, untouched
+            Assert.NotNull(app.IconSource);
+            Assert.NotNull(app.IconSource32);
+            Assert.Equal(initialIconPath, app.IconPath);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void AppInfo_GeneratedIconProperties_ReflectNullWhenNotGenerated()
+    {
+        var app = new AppInfo { Name = "UngeneratedApp", Color = "#123456" };
+        Assert.False(app.HasGeneratedIcon);
+        Assert.Null(app.IconSource);
+        Assert.Null(app.IconSource16);
+        Assert.Null(app.IconSource32);
+        Assert.Null(app.IconSource48);
+        Assert.Null(app.LivePreviewSource);
+    }
+
+    [Fact]
+    public void AppInfo_LivePreviewProperties_FallbackCorrectly()
+    {
+        var app = new AppInfo { Name = "PreviewFallbackApp" };
+        var renderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+        var preview = renderer.RenderPreview(app, "icons", null, 512);
+        Assert.NotNull(preview);
+
+        app.LivePreviewSource = preview;
+        Assert.NotNull(app.LivePreviewSource);
+        Assert.NotNull(app.PreviewSource);
+        Assert.NotNull(app.LivePreviewSource48);
+        Assert.NotNull(app.LivePreviewSource32);
+        Assert.NotNull(app.LivePreviewSource16);
+
+        // IconSource remains null
+        Assert.Null(app.IconSource);
+        Assert.Null(app.IconSource16);
+        Assert.Null(app.IconSource32);
+        Assert.Null(app.IconSource48);
     }
 
     [Fact]
