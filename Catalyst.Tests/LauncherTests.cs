@@ -160,9 +160,15 @@ public class LauncherTests
 
             string mainPng = Path.Combine(tempDir, "CustomGlyphApp", "CustomGlyphApp.png");
             string ico = Path.Combine(tempDir, "CustomGlyphApp", "favicon.ico");
+            string svgPath = Path.Combine(tempDir, "CustomGlyphApp", "CustomGlyphApp.svg");
 
             Assert.True(File.Exists(mainPng));
             Assert.True(File.Exists(ico));
+            Assert.True(File.Exists(svgPath));
+
+            string svgContent = File.ReadAllText(svgPath);
+            Assert.Contains("<svg", svgContent);
+            Assert.Contains("</svg>", svgContent);
         }
         finally
         {
@@ -1130,5 +1136,973 @@ apps:
         await launcherService.LaunchAppAsync(urlApp);
         Assert.True(fakeExecutor.UrlOpened);
         Assert.Equal("https://localhost:5001", fakeExecutor.LastOpenedUrl);
+    }
+
+    [Fact]
+    public void SkiaIconRenderer_RenderIconSvg_OutputsValidSvgWithLabelAndGradient()
+    {
+        var renderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+        var app = new AppInfo
+        {
+            Name = "SvgTestApp",
+            Color = "#FF0000",
+            SecondaryColor = "#0000FF",
+            BackgroundType = "Gradient",
+            GradientDirection = "Vertical",
+            Label = "SVG"
+        };
+
+        string svg = renderer.RenderIconSvg(app, 512, ".");
+        Assert.NotNull(svg);
+        Assert.Contains("<linearGradient", svg);
+        Assert.Contains("viewBox=\"0 0 512 512\"", svg);
+
+        // Load the generated SVG using Svg.Skia and render it to a bitmap to verify pixels
+        var skSvg = new Svg.Skia.SKSvg();
+        skSvg.FromSvg(svg);
+        Assert.NotNull(skSvg.Picture);
+
+        using var bitmap = new SkiaSharp.SKBitmap(512, 512);
+        using (var canvas = new SkiaSharp.SKCanvas(bitmap))
+        {
+            canvas.Clear(SkiaSharp.SKColors.Transparent);
+            canvas.DrawPicture(skSvg.Picture);
+        }
+
+        var topPixel = bitmap.GetPixel(256, 100);
+        var bottomPixel = bitmap.GetPixel(256, 450);
+
+        // Top should be reddish, bottom should be bluish
+        Assert.True(topPixel.Red > 150 && topPixel.Blue < 100, $"Top pixel was {topPixel}");
+        Assert.True(bottomPixel.Blue > 150 && bottomPixel.Red < 100, $"Bottom pixel was {bottomPixel}");
+    }
+
+    [Fact]
+    public void SkiaIconRenderer_RenderIconSvg_OutputsValidSvgWithDefaultGradient()
+    {
+        var renderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+        var app = new AppInfo
+        {
+            Name = "SvgTestAppDefaultGrad",
+            Color = "#1E88E4",
+            SecondaryColor = null,
+            BackgroundType = "Gradient",
+            GradientDirection = "Vertical",
+            Label = "SVG"
+        };
+
+        string svg = renderer.RenderIconSvg(app, 512, ".");
+        Assert.NotNull(svg);
+        Assert.Contains("<linearGradient", svg);
+        Assert.Contains("viewBox=\"0 0 512 512\"", svg);
+
+        var skSvg = new Svg.Skia.SKSvg();
+        skSvg.FromSvg(svg);
+        Assert.NotNull(skSvg.Picture);
+
+        using var bitmap = new SkiaSharp.SKBitmap(512, 512);
+        using (var canvas = new SkiaSharp.SKCanvas(bitmap))
+        {
+            canvas.Clear(SkiaSharp.SKColors.Transparent);
+            canvas.DrawPicture(skSvg.Picture);
+        }
+
+        var topPixel = bitmap.GetPixel(256, 50);
+        var bottomPixel = bitmap.GetPixel(256, 450);
+
+        // Default gradient: top is lighter (higher RGB), bottom is darker (lower RGB)
+        Assert.True(topPixel.Red > bottomPixel.Red, $"Expected top red {topPixel.Red} > bottom red {bottomPixel.Red}");
+        Assert.True(topPixel.Green > bottomPixel.Green, $"Expected top green {topPixel.Green} > bottom green {bottomPixel.Green}");
+        Assert.True(topPixel.Blue > bottomPixel.Blue, $"Expected top blue {topPixel.Blue} > bottom blue {bottomPixel.Blue}");
+    }
+
+    [Fact]
+    public void SkiaIconRenderer_RenderIconSvg_ImplicitGradientWhenSecondaryColorPresent()
+    {
+        var renderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+        var app = new AppInfo
+        {
+            Name = "SvgTestAppImplicitGrad",
+            Color = "#FF0000",
+            SecondaryColor = "#00FF00",
+            BackgroundType = "", // Implicit gradient
+            GradientDirection = "Horizontal"
+        };
+
+        string svg = renderer.RenderIconSvg(app, 512, ".");
+        Assert.NotNull(svg);
+        Assert.Contains("<linearGradient", svg);
+        Assert.Contains("viewBox=\"0 0 512 512\"", svg);
+    }
+
+    [Fact]
+    public void IconManagementService_GenerateIcon_GeneratesSvgFile()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystSvgTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var mockConfigRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var mockSettings = new Catalyst.Adapters.Persistence.JsonSettingsStorage(Path.Combine(tempDir, "settings.json"));
+            var mockPathResolver = new Catalyst.Adapters.Persistence.PathResolver(mockSettings);
+            mockPathResolver.CustomConfigPath = Path.Combine(tempDir, "apps.yaml");
+            var configService = new Catalyst.Core.Services.AppConfigurationService(mockConfigRepo, mockSettings, mockPathResolver);
+
+            var renderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+            var iconService = new Catalyst.Core.Services.IconManagementService(renderer, configService);
+
+            var app = new AppInfo
+            {
+                Name = "ServiceSvgApp",
+                Color = "#123456",
+                Label = "SV"
+            };
+
+            iconService.GenerateIcon(app);
+
+            string iconsDir = Path.Combine(tempDir, "icons");
+            string svgPath = Path.Combine(iconsDir, "ServiceSvgApp", "ServiceSvgApp.svg");
+            string pngPath = Path.Combine(iconsDir, "ServiceSvgApp", "ServiceSvgApp.png");
+            string icoPath = Path.Combine(iconsDir, "ServiceSvgApp", "favicon.ico");
+
+            Assert.True(File.Exists(svgPath));
+            Assert.True(File.Exists(pngPath));
+            Assert.True(File.Exists(icoPath));
+
+            string svgContent = File.ReadAllText(svgPath);
+            Assert.Contains("<svg", svgContent);
+            Assert.Contains("</svg>", svgContent);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void IconGenerator_RenderIconSvg_And_SaveSvg_WorkCorrectly()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystSvgTest2_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var generator = new IconGenerator();
+            var app = new AppInfo
+            {
+                Name = "DirectSvgApp",
+                Color = "#112233",
+                SecondaryColor = "#445566",
+                BackgroundType = "Gradient",
+                GradientDirection = "Horizontal",
+                CustomGlyphSvg = @"<svg xmlns=""http://www.w3.org/2000/svg"" viewBox=""0 0 10 10""><circle cx=""5"" cy=""5"" r=""4"" fill=""white"" /></svg>",
+                CustomGlyphColor = "#FFFFFF"
+            };
+
+            string svg = generator.RenderIconSvg(app, 256, tempDir);
+            Assert.NotNull(svg);
+            Assert.Contains("<svg", svg);
+            Assert.Contains("</svg>", svg);
+
+            string targetFile = Path.Combine(tempDir, "nested", "icon.svg");
+            generator.SaveSvg(app, targetFile, 256, tempDir);
+
+            Assert.True(File.Exists(targetFile));
+            string savedContent = File.ReadAllText(targetFile);
+            Assert.Contains("<svg", savedContent);
+            Assert.Contains("</svg>", savedContent);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void AppConfigurationService_ConvertToAppInfo_AutomaticallyPopulatesIconPathFromDiskIfExists()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystIconPathTest_" + Guid.NewGuid().ToString("N"));
+        string iconsDir = Path.Combine(tempDir, "icons", "AutoPathApp");
+        Directory.CreateDirectory(iconsDir);
+
+        try
+        {
+            string expectedPngPath = Path.Combine(iconsDir, "AutoPathApp.png");
+            File.WriteAllText(expectedPngPath, "dummy png content");
+
+            var mockConfigRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var mockSettings = new Catalyst.Adapters.Persistence.JsonSettingsStorage(Path.Combine(tempDir, "settings.json"));
+            var mockPathResolver = new Catalyst.Adapters.Persistence.PathResolver(mockSettings);
+            mockPathResolver.CustomConfigPath = Path.Combine(tempDir, "catalyst.yaml");
+            var configService = new Catalyst.Core.Services.AppConfigurationService(mockConfigRepo, mockSettings, mockPathResolver);
+
+            var entry = new Catalyst.AppConfigEntry
+            {
+                Name = "AutoPathApp",
+                Icon = new Catalyst.IconConfig
+                {
+                    Color = "#FF0000",
+                    IconPath = null // Not explicitly provided in YAML
+                }
+            };
+
+            var appInfo = configService.ConvertToAppInfo(entry, tempDir, Path.Combine(tempDir, "icons"));
+
+            Assert.Equal("AutoPathApp", appInfo.Name);
+            Assert.Equal(expectedPngPath, appInfo.IconPath);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void AppConfigurationService_SaveAndReload_PreservesGeneratedIconPathAndChangesWithoutRestart()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystSaveReloadTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var mockConfigRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var mockSettings = new Catalyst.Adapters.Persistence.JsonSettingsStorage(Path.Combine(tempDir, "settings.json"));
+            var mockPathResolver = new Catalyst.Adapters.Persistence.PathResolver(mockSettings);
+            string configPath = Path.Combine(tempDir, "catalyst.yaml");
+            mockPathResolver.CustomConfigPath = configPath;
+            var configService = new Catalyst.Core.Services.AppConfigurationService(mockConfigRepo, mockSettings, mockPathResolver);
+
+            var renderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+            var iconService = new Catalyst.Core.Services.IconManagementService(renderer, configService);
+
+            var app = new AppInfo
+            {
+                Name = "ReloadTestApp",
+                Color = "#FF1234",
+                SecondaryColor = "#567890",
+                BackgroundType = "Gradient",
+                Label = "RL"
+            };
+
+            // Generate icon
+            iconService.GenerateIcon(app);
+            string generatedPng = Path.Combine(tempDir, "icons", "ReloadTestApp", "ReloadTestApp.png");
+            Assert.True(File.Exists(generatedPng));
+
+            app.IconPath = generatedPng;
+
+            // Save config
+            configService.SaveApps(new[] { app }, configPath);
+
+            // Reload config as if MainWindow or ViewModel reloaded without restart
+            var loadedApps = configService.LoadApps(configPath);
+            Assert.Single(loadedApps);
+            var reloadedApp = loadedApps[0];
+
+            Assert.Equal("ReloadTestApp", reloadedApp.Name);
+            Assert.Equal("#FF1234", reloadedApp.Color);
+            Assert.Equal("#567890", reloadedApp.SecondaryColor);
+            Assert.Equal("Gradient", reloadedApp.BackgroundType);
+            Assert.Equal(generatedPng, reloadedApp.IconPath);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void MainWindowViewModel_LoadApps_GeneratesPreviewsWhenIconsMissingOnDisk()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystMainVmTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var mockConfigRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var mockSettings = new Catalyst.Adapters.Persistence.JsonSettingsStorage(Path.Combine(tempDir, "settings.json"));
+            var mockPathResolver = new Catalyst.Adapters.Persistence.PathResolver(mockSettings);
+            string configPath = Path.Combine(tempDir, "catalyst.yaml");
+            mockPathResolver.CustomConfigPath = configPath;
+            var configService = new Catalyst.Core.Services.AppConfigurationService(mockConfigRepo, mockSettings, mockPathResolver);
+
+            var renderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+            var iconService = new Catalyst.Core.Services.IconManagementService(renderer, configService);
+
+            var entry = new Catalyst.AppConfigEntry
+            {
+                Name = "NoIconApp",
+                Icon = new Catalyst.IconConfig
+                {
+                    Color = "#2288CC",
+                    Label = "NI"
+                }
+            };
+            var configFile = new Catalyst.AppConfigFile();
+            configFile.Apps.Add(entry);
+            mockConfigRepo.SaveConfigFile(configFile, configPath);
+
+            var launcher = new Catalyst.Core.Services.AppLauncherService(new Catalyst.Adapters.Processes.WindowsProcessExecutor(), configService);
+            var hotkeyHook = new Catalyst.Adapters.Platform.WindowsHotkeyHook();
+            var hotkey = new Catalyst.Core.Services.HotkeyService(hotkeyHook);
+            var windowPlacement = new Catalyst.Adapters.Platform.WindowPlacementService();
+            var windowService = new Catalyst.Adapters.UI.Navigation.WindowService(null!, windowPlacement);
+
+            var mainVm = new Catalyst.Adapters.UI.ViewModels.MainWindowViewModel(configService, launcher, hotkey, windowService, iconService);
+            mainVm.LoadApps(configPath);
+
+            Assert.Single(mainVm.Apps);
+            var app = mainVm.Apps[0];
+            Assert.NotNull(app.PreviewSource);
+            Assert.NotNull(app.IconSource32);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void AppManagementViewModel_InitializeAndGenerateAll_GeneratesIconsAndPreservesVisuals()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystAppMgmtTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var mockConfigRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var mockSettings = new Catalyst.Adapters.Persistence.JsonSettingsStorage(Path.Combine(tempDir, "settings.json"));
+            var mockPathResolver = new Catalyst.Adapters.Persistence.PathResolver(mockSettings);
+            string configPath = Path.Combine(tempDir, "catalyst.yaml");
+            mockPathResolver.CustomConfigPath = configPath;
+            var configService = new Catalyst.Core.Services.AppConfigurationService(mockConfigRepo, mockSettings, mockPathResolver);
+
+            var renderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+            var iconService = new Catalyst.Core.Services.IconManagementService(renderer, configService);
+            var hotkeyHook = new Catalyst.Adapters.Platform.WindowsHotkeyHook();
+            var hotkey = new Catalyst.Core.Services.HotkeyService(hotkeyHook);
+            var windowPlacement = new Catalyst.Adapters.Platform.WindowPlacementService();
+            var windowService = new Catalyst.Adapters.UI.Navigation.WindowService(null!, windowPlacement);
+
+            var app1 = new AppInfo { Name = "GenApp1", Color = "#FF0000", Label = "G1" };
+            var app2 = new AppInfo { Name = "GenApp2", Color = "#00FF00", Label = "G2" };
+
+            configService.SaveApps(new[] { app1, app2 }, configPath);
+
+            var mgmtVm = new Catalyst.Adapters.UI.ViewModels.AppManagementViewModel(configService, iconService, hotkey, windowService);
+            mgmtVm.ConfigFilePath = configPath;
+            mgmtVm.Initialize(null, "Alt+Space", configPath);
+
+            Assert.Equal(2, mgmtVm.Apps.Count);
+            Assert.NotNull(mgmtVm.Apps[0].PreviewSource);
+            Assert.NotNull(mgmtVm.Apps[1].PreviewSource);
+
+            // Generate all icons
+            mgmtVm.GenerateAllIcons();
+
+            string icon1Path = Path.Combine(tempDir, "icons", "GenApp1", "GenApp1.png");
+            string icon2Path = Path.Combine(tempDir, "icons", "GenApp2", "GenApp2.png");
+            string svg1Path = Path.Combine(tempDir, "icons", "GenApp1", "GenApp1.svg");
+            string ico1Path = Path.Combine(tempDir, "icons", "GenApp1", "favicon.ico");
+
+            Assert.True(File.Exists(icon1Path));
+            Assert.True(File.Exists(icon2Path));
+            Assert.True(File.Exists(svg1Path));
+            Assert.True(File.Exists(ico1Path));
+
+            // Icons should be loaded into AppInfo
+            mgmtVm.Apps[0].IconPath = icon1Path;
+            mgmtVm.Apps[1].IconPath = icon2Path;
+            mgmtVm.Apps[0].RefreshIcons();
+            mgmtVm.Apps[1].RefreshIcons();
+
+            Assert.NotNull(mgmtVm.Apps[0].IconSource32);
+            Assert.NotNull(mgmtVm.Apps[1].IconSource32);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void SettingsViewModel_LoadSaveResetAndValidate_WorksCorrectly()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystSettingsWindowTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var mockConfigRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var mockSettings = new Catalyst.Adapters.Persistence.JsonSettingsStorage(Path.Combine(tempDir, "settings.json"));
+            var mockPathResolver = new Catalyst.Adapters.Persistence.PathResolver(mockSettings);
+            string configPath = Path.Combine(tempDir, "catalyst.yaml");
+            mockPathResolver.CustomConfigPath = configPath;
+            var configService = new Catalyst.Core.Services.AppConfigurationService(mockConfigRepo, mockSettings, mockPathResolver);
+
+            var hotkeyHook = new Catalyst.Adapters.Platform.WindowsHotkeyHook();
+            var hotkey = new Catalyst.Core.Services.HotkeyService(hotkeyHook);
+
+            var app = new AppInfo { Name = "SettingsApp", Color = "#336699", Label = "SA" };
+            configService.SaveApps(new[] { app }, "Ctrl+Alt+S", configPath);
+
+            var settingsVm = new Catalyst.Adapters.UI.ViewModels.SettingsViewModel(configService, hotkey);
+            Assert.Equal(configPath, settingsVm.ConfigFilePath);
+            Assert.Equal("Ctrl+Alt+S", settingsVm.ConfiguredHotkey);
+
+            // Test hotkey validation
+            Assert.True(settingsVm.ValidateHotkey("Alt+Space"));
+            Assert.True(settingsVm.ValidateHotkey("Ctrl+Shift+F12"));
+            Assert.False(settingsVm.ValidateHotkey("InvalidKeyCombo123"));
+
+            // Change hotkey and save
+            settingsVm.ConfiguredHotkey = "Ctrl+Shift+Z";
+            settingsVm.Save();
+
+            // Verify saved
+            var reloadedVm = new Catalyst.Adapters.UI.ViewModels.SettingsViewModel(configService, hotkey);
+            reloadedVm.LoadConfig(configPath);
+            Assert.Equal("Ctrl+Shift+Z", reloadedVm.ConfiguredHotkey);
+
+            // Test Reset to Default
+            settingsVm.ResetToDefault();
+            Assert.Null(configService.GetCustomConfigPath());
+            Assert.Null(configService.GetCustomIconsDir());
+
+            // Test setting custom IconsDirectory
+            string customIconsDir = Path.Combine(tempDir, "custom_icons_output");
+            settingsVm.IconsDirectory = customIconsDir;
+            settingsVm.Save();
+
+            Assert.Equal(Path.GetFullPath(customIconsDir), configService.IconsBaseDir);
+            Assert.Equal(Path.GetFullPath(customIconsDir), configService.GetCustomIconsDir());
+
+            // Reset icons directory
+            settingsVm.ResetIconsDirectoryToDefault();
+            Assert.Null(configService.GetCustomIconsDir());
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void MainWindowViewModel_OpenSettings_CallsWindowServiceAndReloadsApps()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystMainSettingsTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var mockConfigRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var mockSettings = new Catalyst.Adapters.Persistence.JsonSettingsStorage(Path.Combine(tempDir, "settings.json"));
+            var mockPathResolver = new Catalyst.Adapters.Persistence.PathResolver(mockSettings);
+            string configPath = Path.Combine(tempDir, "catalyst.yaml");
+            mockPathResolver.CustomConfigPath = configPath;
+            var configService = new Catalyst.Core.Services.AppConfigurationService(mockConfigRepo, mockSettings, mockPathResolver);
+
+            var processExec = new Catalyst.Adapters.Processes.WindowsProcessExecutor();
+            var launcherService = new Catalyst.Core.Services.AppLauncherService(processExec, configService);
+            var hotkeyHook = new Catalyst.Adapters.Platform.WindowsHotkeyHook();
+            var hotkey = new Catalyst.Core.Services.HotkeyService(hotkeyHook);
+            var windowPlacement = new Catalyst.Adapters.Platform.WindowPlacementService();
+            
+            bool showSettingsCalled = false;
+            var mockWindowService = new MockWindowService(() => showSettingsCalled = true);
+
+            var app = new AppInfo { Name = "MainTestApp", Color = "#FF9900", Label = "MT" };
+            configService.SaveApps(new[] { app }, configPath);
+
+            var mainVm = new Catalyst.Adapters.UI.ViewModels.MainWindowViewModel(
+                configService, launcherService, hotkey, mockWindowService);
+
+            mainVm.LoadApps();
+            Assert.Single(mainVm.Apps);
+
+            mainVm.OpenSettings();
+            Assert.True(showSettingsCalled);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void UpdateProjectFavicon_SingleApp_CopiesIcoAndUpdatesCsproj()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystFaviconTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var mockConfigRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var mockSettings = new Catalyst.Adapters.Persistence.JsonSettingsStorage(Path.Combine(tempDir, "settings.json"));
+            var mockPathResolver = new Catalyst.Adapters.Persistence.PathResolver(mockSettings);
+            string configPath = Path.Combine(tempDir, "apps.yaml");
+            mockPathResolver.CustomConfigPath = configPath;
+            var configService = new Catalyst.Core.Services.AppConfigurationService(mockConfigRepo, mockSettings, mockPathResolver);
+
+            var iconRenderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+            var iconService = new Catalyst.Core.Services.IconManagementService(iconRenderer, configService);
+            var hotkeyHook = new Catalyst.Adapters.Platform.WindowsHotkeyHook();
+            var hotkey = new Catalyst.Core.Services.HotkeyService(hotkeyHook);
+            var mockWindowService = new MockWindowService(() => { });
+
+            string projectDir = Path.Combine(tempDir, "MyTestApp");
+            Directory.CreateDirectory(projectDir);
+            string csprojPath = Path.Combine(projectDir, "MyTestApp.csproj");
+            File.WriteAllText(csprojPath, "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <OutputType>WinExe</OutputType>\n  </PropertyGroup>\n</Project>");
+
+            string targetFaviconPath = Path.Combine(projectDir, "wwwroot", "favicon.ico");
+
+            var app = new AppInfo
+            {
+                Name = "MyTestApp",
+                Color = "#4A90E2",
+                Label = "MTA",
+                FaviconPath = targetFaviconPath,
+                ProjectPath = csprojPath
+            };
+
+            configService.SaveApps(new[] { app }, configPath);
+
+            var mgmtVm = new Catalyst.Adapters.UI.ViewModels.AppManagementViewModel(
+                configService, iconService, hotkey, mockWindowService);
+
+            // Test updating single app favicon via ViewModel
+            bool success = mgmtVm.UpdateProjectFavicon(app);
+            Assert.True(success);
+
+            // Verify favicon.ico was created at target path
+            Assert.True(File.Exists(targetFaviconPath));
+            Assert.True(new FileInfo(targetFaviconPath).Length > 0);
+
+            // Verify csproj was updated with <ApplicationIcon>
+            string updatedCsproj = File.ReadAllText(csprojPath);
+            Assert.Contains("<ApplicationIcon>", updatedCsproj);
+            Assert.Contains("favicon.ico", updatedCsproj);
+
+            // Test without favicon path returns false
+            var emptyFaviconApp = new AppInfo { Name = "EmptyFaviconApp", Color = "#112233" };
+            Assert.False(mgmtVm.UpdateProjectFavicon(emptyFaviconApp));
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void UpdateProjectFavicon_PngAndSvgTargets_CopiesFilesCorrectly()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystFaviconPngSvgTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var mockConfigRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var mockSettings = new Catalyst.Adapters.Persistence.JsonSettingsStorage(Path.Combine(tempDir, "settings.json"));
+            var mockPathResolver = new Catalyst.Adapters.Persistence.PathResolver(mockSettings);
+            string configPath = Path.Combine(tempDir, "apps.yaml");
+            mockPathResolver.CustomConfigPath = configPath;
+            var configService = new Catalyst.Core.Services.AppConfigurationService(mockConfigRepo, mockSettings, mockPathResolver);
+
+            var iconRenderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+            var iconService = new Catalyst.Core.Services.IconManagementService(iconRenderer, configService);
+
+            string targetPngPath = Path.Combine(tempDir, "web", "favicon.png");
+            string targetSvgPath = Path.Combine(tempDir, "web", "app-icon.svg");
+
+            var appPng = new AppInfo
+            {
+                Name = "PngApp",
+                Color = "#FF5722",
+                Label = "PNG",
+                FaviconPath = targetPngPath
+            };
+
+            var appSvg = new AppInfo
+            {
+                Name = "SvgApp",
+                Color = "#4CAF50",
+                Label = "SVG",
+                FaviconPath = targetSvgPath
+            };
+
+            Assert.True(iconService.UpdateProjectFavicon(appPng));
+            Assert.True(File.Exists(targetPngPath));
+            Assert.True(new FileInfo(targetPngPath).Length > 0);
+
+            Assert.True(iconService.UpdateProjectFavicon(appSvg));
+            Assert.True(File.Exists(targetSvgPath));
+            Assert.True(new FileInfo(targetSvgPath).Length > 0);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void Settings_SetCustomConfigFile_PersistsAndLoadsAcrossAppRestart()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystSettingsRestartTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        string settingsFile = Path.Combine(tempDir, "settings.json");
+        string customYamlFile = Path.Combine(tempDir, "custom_apps.yaml");
+
+        try
+        {
+            // 1. Create a custom YAML file with apps
+            var configRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var settingsStorage = new Catalyst.Adapters.Persistence.JsonSettingsStorage(settingsFile);
+            var pathResolver = new Catalyst.Adapters.Persistence.PathResolver(settingsStorage);
+            var configService = new Catalyst.Core.Services.AppConfigurationService(configRepo, settingsStorage, pathResolver);
+            var hotkeyHook = new Catalyst.Adapters.Platform.WindowsHotkeyHook();
+            var hotkeyService = new Catalyst.Core.Services.HotkeyService(hotkeyHook);
+
+            var sampleApp = new AppInfo { Name = "PersistentApp", Color = "#123456", Label = "PA" };
+            configService.SaveApps(new[] { sampleApp }, "Ctrl+Shift+P", customYamlFile);
+
+            // 2. Open Settings ViewModel and set the custom config path
+            var settingsVm = new Catalyst.Adapters.UI.ViewModels.SettingsViewModel(configService, hotkeyService);
+            settingsVm.ConfigFilePath = customYamlFile;
+            settingsVm.Save();
+
+            Assert.Equal(customYamlFile, settingsVm.ConfigFilePath);
+            Assert.Equal(customYamlFile, configService.ActiveConfigPath);
+
+            // 3. Simulate App Restart: Create completely fresh instances of all services pointing to the same settings.json
+            var restartedSettingsStorage = new Catalyst.Adapters.Persistence.JsonSettingsStorage(settingsFile);
+            var restartedPathResolver = new Catalyst.Adapters.Persistence.PathResolver(restartedSettingsStorage);
+            var restartedConfigRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var restartedConfigService = new Catalyst.Core.Services.AppConfigurationService(restartedConfigRepo, restartedSettingsStorage, restartedPathResolver);
+
+            // Verify the active config path is automatically the custom YAML file
+            Assert.Equal(Path.GetFullPath(customYamlFile), restartedConfigService.ActiveConfigPath);
+
+            // Verify loading apps loads the app from the custom YAML file, NOT an empty/default config
+            var reloadedApps = restartedConfigService.LoadApps();
+            Assert.Single(reloadedApps);
+            Assert.Equal("PersistentApp", reloadedApps[0].Name);
+            Assert.Equal("#123456", reloadedApps[0].Color);
+            Assert.Equal("PA", reloadedApps[0].Label);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void YamlConfigRepository_LoadsDifferentNamingConventionsAndPreservesProperties()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystYamlConventionsTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        string yamlSnakeCase = Path.Combine(tempDir, "snake_case.yaml");
+
+        try
+        {
+            string snakeCaseContent = """
+            hotkey: Alt+Space
+            apps:
+              - name: Warpdeck
+                hidden: false
+                launch:
+                  project_path: C:\Projects\Warpdeck\Warpdeck.csproj
+                  executable_path: C:\Projects\Warpdeck\bin\Warpdeck.exe
+                  working_directory: C:\Projects\Warpdeck
+                  arguments: --dev
+                  run_as_admin: true
+                icon:
+                  color: "#1E88E4"
+                  secondary_color: "#FF5500"
+                  background_type: Gradient
+                  gradient_direction: Diagonal
+                  label: WD
+                  icon_path: C:\Projects\Warpdeck\icon.png
+                  favicon_path: C:\Projects\Warpdeck\favicon.ico
+                  bootstrap_icon: rocket
+                  custom_glyph_svg: <svg>test</svg>
+                  custom_glyph_color: "#FFFFFF"
+                  svg_override: <svg>override</svg>
+            """;
+            File.WriteAllText(yamlSnakeCase, snakeCaseContent);
+
+            var repo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var config = repo.LoadConfigFile(yamlSnakeCase);
+
+            Assert.NotNull(config);
+            Assert.Single(config.Apps);
+            var app = config.Apps[0];
+            Assert.Equal("Warpdeck", app.Name);
+            Assert.Equal(@"C:\Projects\Warpdeck\Warpdeck.csproj", app.Launch.ProjectPath);
+            Assert.Equal(@"C:\Projects\Warpdeck\bin\Warpdeck.exe", app.Launch.ExecutablePath);
+            Assert.Equal(@"C:\Projects\Warpdeck", app.Launch.WorkingDirectory);
+            Assert.Equal("--dev", app.Launch.Arguments);
+            Assert.True(app.Launch.RunAsAdmin);
+
+            Assert.Equal("#1E88E4", app.Icon.Color);
+            Assert.Equal("#FF5500", app.Icon.SecondaryColor);
+            Assert.Equal("Gradient", app.Icon.BackgroundType);
+            Assert.Equal("Diagonal", app.Icon.GradientDirection);
+            Assert.Equal("WD", app.Icon.Label);
+            Assert.Equal(@"C:\Projects\Warpdeck\icon.png", app.Icon.IconPath);
+            Assert.Equal(@"C:\Projects\Warpdeck\favicon.ico", app.Icon.FaviconPath);
+            Assert.Equal("rocket", app.Icon.BootstrapIcon);
+            Assert.Equal("<svg>test</svg>", app.Icon.CustomGlyphSvg);
+            Assert.Equal("#FFFFFF", app.Icon.CustomGlyphColor);
+            Assert.Equal("<svg>override</svg>", app.Icon.SvgOverride);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void PathResolver_NormalizePath_HandlesQuotesTildeEnvVarsAndDirectories()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystNormalizeTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            string expectedFile = Path.Combine(tempDir, "apps.yaml");
+
+            // 1. Quoted path
+            string quoted = $"\"{expectedFile}\"";
+            Assert.Equal(expectedFile, Catalyst.Adapters.Persistence.PathResolver.NormalizePath(quoted));
+
+            // 2. Single-quoted path
+            string singleQuoted = $"'{expectedFile}'";
+            Assert.Equal(expectedFile, Catalyst.Adapters.Persistence.PathResolver.NormalizePath(singleQuoted));
+
+            // 3. Directory path (should append apps.yaml)
+            Assert.Equal(expectedFile, Catalyst.Adapters.Persistence.PathResolver.NormalizePath(tempDir));
+            Assert.Equal(expectedFile, Catalyst.Adapters.Persistence.PathResolver.NormalizePath(tempDir + Path.DirectorySeparatorChar));
+
+            // 4. Environment variable
+            Environment.SetEnvironmentVariable("CATALYST_TEST_TEMP", tempDir);
+            string envPath = "%CATALYST_TEST_TEMP%\\apps.yaml";
+            Assert.Equal(expectedFile, Catalyst.Adapters.Persistence.PathResolver.NormalizePath(envPath));
+            Environment.SetEnvironmentVariable("CATALYST_TEST_TEMP", null);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void JsonSettingsStorage_LoadsAlternateNamingAndToleratesComments()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystSettingsAltTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        string settingsFile = Path.Combine(tempDir, "settings.json");
+
+        try
+        {
+            // JSON with snake_case property names, comments, and trailing comma
+            string jsonContent = """
+            {
+                // User settings configuration
+                "config_path": "C:\\MyProjects\\apps.yaml",
+                "hot_key": "Ctrl+Space",
+            }
+            """;
+            File.WriteAllText(settingsFile, jsonContent);
+
+            var storage = new Catalyst.Adapters.Persistence.JsonSettingsStorage(settingsFile);
+            var loaded = storage.LoadSettings();
+
+            Assert.NotNull(loaded);
+            Assert.Equal(@"C:\MyProjects\apps.yaml", loaded.ConfigPath);
+            Assert.Equal("Ctrl+Space", loaded.Hotkey);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void SettingsPersistence_QuotedAndDirectoryPaths_PersistAcrossRestarts()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystRestartQuotedTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        string settingsFile = Path.Combine(tempDir, "settings.json");
+        string customYamlFile = Path.Combine(tempDir, "custom-apps.yaml");
+
+        try
+        {
+            var settingsStorage = new Catalyst.Adapters.Persistence.JsonSettingsStorage(settingsFile);
+            var pathResolver = new Catalyst.Adapters.Persistence.PathResolver(settingsStorage);
+            var configRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var configService = new Catalyst.Core.Services.AppConfigurationService(configRepo, settingsStorage, pathResolver);
+            var hotkeyHook = new Catalyst.Adapters.Platform.WindowsHotkeyHook();
+            var hotkeyService = new Catalyst.Core.Services.HotkeyService(hotkeyHook);
+
+            var sampleApp = new AppInfo { Name = "QuotedPathApp", Color = "#654321", Label = "QA" };
+            configService.SaveApps(new[] { sampleApp }, "Alt+Space", customYamlFile);
+
+            // User pasted path with surrounding quotes into SettingsViewModel
+            var settingsVm = new Catalyst.Adapters.UI.ViewModels.SettingsViewModel(configService, hotkeyService);
+            settingsVm.ConfigFilePath = $"\"{customYamlFile}\"";
+            settingsVm.Save();
+
+            // Simulate app restart
+            var restartedSettingsStorage = new Catalyst.Adapters.Persistence.JsonSettingsStorage(settingsFile);
+            var restartedPathResolver = new Catalyst.Adapters.Persistence.PathResolver(restartedSettingsStorage);
+            var restartedConfigRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var restartedConfigService = new Catalyst.Core.Services.AppConfigurationService(restartedConfigRepo, restartedSettingsStorage, restartedPathResolver);
+
+            Assert.Equal(Path.GetFullPath(customYamlFile), restartedConfigService.ActiveConfigPath);
+            var reloadedApps = restartedConfigService.LoadApps();
+            Assert.Single(reloadedApps);
+            Assert.Equal("QuotedPathApp", reloadedApps[0].Name);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void ColorPicker_RgbToHsv_And_HsvToRgb_RoundTripCorrectly()
+    {
+        // Pure Red
+        var (hRed, sRed, vRed) = Catalyst.Windows.ColorPickerWindow.RgbToHsv(255, 0, 0);
+        Assert.Equal(0.0, hRed, 1);
+        Assert.Equal(1.0, sRed, 2);
+        Assert.Equal(1.0, vRed, 2);
+        var (r1, g1, b1) = Catalyst.Windows.ColorPickerWindow.HsvToRgb(hRed, sRed, vRed);
+        Assert.Equal(255, r1);
+        Assert.Equal(0, g1);
+        Assert.Equal(0, b1);
+
+        // Pure Green
+        var (hGreen, sGreen, vGreen) = Catalyst.Windows.ColorPickerWindow.RgbToHsv(0, 255, 0);
+        Assert.Equal(120.0, hGreen, 1);
+        Assert.Equal(1.0, sGreen, 2);
+        Assert.Equal(1.0, vGreen, 2);
+        var (r2, g2, b2) = Catalyst.Windows.ColorPickerWindow.HsvToRgb(hGreen, sGreen, vGreen);
+        Assert.Equal(0, r2);
+        Assert.Equal(255, g2);
+        Assert.Equal(0, b2);
+
+        // Pure Blue
+        var (hBlue, sBlue, vBlue) = Catalyst.Windows.ColorPickerWindow.RgbToHsv(0, 0, 255);
+        Assert.Equal(240.0, hBlue, 1);
+        Assert.Equal(1.0, sBlue, 2);
+        Assert.Equal(1.0, vBlue, 2);
+        var (r3, g3, b3) = Catalyst.Windows.ColorPickerWindow.HsvToRgb(hBlue, sBlue, vBlue);
+        Assert.Equal(0, r3);
+        Assert.Equal(0, g3);
+        Assert.Equal(255, b3);
+
+        // White
+        var (hWhite, sWhite, vWhite) = Catalyst.Windows.ColorPickerWindow.RgbToHsv(255, 255, 255);
+        Assert.Equal(0.0, sWhite, 2);
+        Assert.Equal(1.0, vWhite, 2);
+        var (rw, gw, bw) = Catalyst.Windows.ColorPickerWindow.HsvToRgb(hWhite, sWhite, vWhite);
+        Assert.Equal(255, rw);
+        Assert.Equal(255, gw);
+        Assert.Equal(255, bw);
+
+        // Black
+        var (hBlack, sBlack, vBlack) = Catalyst.Windows.ColorPickerWindow.RgbToHsv(0, 0, 0);
+        Assert.Equal(0.0, vBlack, 2);
+        var (rb, gb, bb) = Catalyst.Windows.ColorPickerWindow.HsvToRgb(hBlack, sBlack, vBlack);
+        Assert.Equal(0, rb);
+        Assert.Equal(0, gb);
+        Assert.Equal(0, bb);
+
+        // Brand Blue #1E88E4 (30, 136, 228)
+        var (hBrand, sBrand, vBrand) = Catalyst.Windows.ColorPickerWindow.RgbToHsv(30, 136, 228);
+        var (rBrand, gBrand, bBrand) = Catalyst.Windows.ColorPickerWindow.HsvToRgb(hBrand, sBrand, vBrand);
+        Assert.InRange(rBrand, 29, 31);
+        Assert.InRange(gBrand, 135, 137);
+        Assert.InRange(bBrand, 227, 229);
+    }
+
+    [Fact]
+    public void ColorPicker_NormalizeHex_And_TryParseHex_WorkCorrectly()
+    {
+        Assert.Equal("#1E88E4", Catalyst.Windows.ColorPickerWindow.NormalizeHex("1E88E4"));
+        Assert.Equal("#1E88E4", Catalyst.Windows.ColorPickerWindow.NormalizeHex("#1E88E4"));
+        Assert.Equal("#1E88E4", Catalyst.Windows.ColorPickerWindow.NormalizeHex(null));
+        Assert.Equal("#1E88E4", Catalyst.Windows.ColorPickerWindow.NormalizeHex("   "));
+
+        Assert.True(Catalyst.Windows.ColorPickerWindow.TryParseHex("#FF5500", out var c1));
+        Assert.Equal(255, c1.R);
+        Assert.Equal(85, c1.G);
+        Assert.Equal(0, c1.B);
+
+        Assert.True(Catalyst.Windows.ColorPickerWindow.TryParseHex("336699", out var c2));
+        Assert.Equal(51, c2.R);
+        Assert.Equal(102, c2.G);
+        Assert.Equal(153, c2.B);
+
+        Assert.False(Catalyst.Windows.ColorPickerWindow.TryParseHex("InvalidHexColor", out _));
+        Assert.False(Catalyst.Windows.ColorPickerWindow.TryParseHex("", out _));
+    }
+
+    [Fact]
+    public void ColorPicker_GenerateWheelBitmap_CreatesValidAntialiasedWheel()
+    {
+        var bitmap = Catalyst.Windows.ColorPickerWindow.GenerateWheelBitmap(100);
+        Assert.NotNull(bitmap);
+        Assert.Equal(100, bitmap.PixelWidth);
+        Assert.Equal(100, bitmap.PixelHeight);
+        Assert.True(bitmap.IsFrozen);
+    }
+
+    [Fact]
+    public void ColorPicker_Window_InitializesWithoutException()
+    {
+        Exception? threadEx = null;
+        var thread = new System.Threading.Thread(() =>
+        {
+            try
+            {
+                if (System.Windows.Application.ResourceAssembly == null)
+                {
+                    System.Windows.Application.ResourceAssembly = typeof(Catalyst.App).Assembly;
+                }
+                var window = new Catalyst.Windows.ColorPickerWindow("#FF0055");
+                Assert.NotNull(window);
+                Assert.Equal("#FF0055", window.SelectedHex);
+            }
+            catch (Exception ex)
+            {
+                threadEx = ex;
+            }
+        });
+        thread.SetApartmentState(System.Threading.ApartmentState.STA);
+        thread.Start();
+        thread.Join(5000);
+
+        Assert.Null(threadEx);
+    }
+
+    private class MockWindowService : Catalyst.Adapters.UI.Navigation.IWindowService
+    {
+        private readonly Action _onShowSettings;
+
+        public MockWindowService(Action onShowSettings)
+        {
+            _onShowSettings = onShowSettings;
+        }
+
+        public void ShowMainWindow() { }
+        public void ShowAppManagement(System.Windows.Window? owner = null) { }
+        public void ShowSettings(System.Windows.Window? owner = null) => _onShowSettings();
+        public void ShowLogViewer(AppInfo app, System.Windows.Window? owner = null) { }
+        public void ShowIconsResult(string iconsPath, List<(string AppName, string IconPath)> generatedIcons, System.Windows.Window? owner = null) { }
+        public void PositionBottomRight(System.Windows.Window window) { }
     }
 }

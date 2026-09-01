@@ -42,13 +42,29 @@ public partial class AppManagementWindow : FluentWindow
 
     public string RootDir => _viewModel.RootDir;
 
-    public AppManagementWindow() : this(
-        App.Services != null ? App.Services.GetRequiredService<AppManagementViewModel>() : new AppManagementViewModel(
-            new Core.Services.AppConfigurationService(new Adapters.Persistence.YamlConfigRepository(), new Adapters.Persistence.JsonSettingsStorage(), new Adapters.Persistence.PathResolver(new Adapters.Persistence.JsonSettingsStorage())),
-            new Core.Services.IconManagementService(new Adapters.Icons.SkiaIconRenderer(), new Core.Services.AppConfigurationService(new Adapters.Persistence.YamlConfigRepository(), new Adapters.Persistence.JsonSettingsStorage(), new Adapters.Persistence.PathResolver(new Adapters.Persistence.JsonSettingsStorage()))),
-            new Core.Services.HotkeyService(new Adapters.Platform.WindowsHotkeyHook()),
-            new WindowService(App.Services!, new Adapters.Platform.WindowPlacementService())))
+    public AppManagementWindow() : this(CreateDefaultViewModel())
     {
+    }
+
+    private static AppManagementViewModel CreateDefaultViewModel()
+    {
+        if (App.Services != null)
+        {
+            return App.Services.GetRequiredService<AppManagementViewModel>();
+        }
+
+        var settings = new Adapters.Persistence.JsonSettingsStorage();
+        var resolver = new Adapters.Persistence.PathResolver(settings);
+        var repo = new Adapters.Persistence.YamlConfigRepository();
+        var configService = new Core.Services.AppConfigurationService(repo, settings, resolver);
+        var renderer = new Adapters.Icons.SkiaIconRenderer();
+        var iconService = new Core.Services.IconManagementService(renderer, configService);
+        var hotkeyHook = new Adapters.Platform.WindowsHotkeyHook();
+        var hotkeyService = new Core.Services.HotkeyService(hotkeyHook);
+        var windowPlacement = new Adapters.Platform.WindowPlacementService();
+        var windowService = new WindowService(App.Services!, windowPlacement);
+
+        return new AppManagementViewModel(configService, iconService, hotkeyService, windowService);
     }
 
     public AppManagementWindow(AppManagementViewModel viewModel)
@@ -58,33 +74,35 @@ public partial class AppManagementWindow : FluentWindow
         DataContext = _viewModel;
         LstApps.ItemsSource = new ListCollectionView(_viewModel.Apps);
 
-        TxtGlobalHotkey.Text = _viewModel.ConfiguredHotkey;
-        TxtConfigPath.Text = _viewModel.ConfigFilePath;
-
         if (_viewModel.Apps.Count > 0)
         {
             LstApps.SelectedIndex = 0;
         }
         UpdateReorderButtonStates();
+        Closing += AppManagementWindow_Closing;
     }
 
     public AppManagementWindow(ObservableCollection<AppInfo> apps, string initialHotkey = "Alt+Space", string? initialConfigPath = null)
-        : this(App.Services != null ? App.Services.GetRequiredService<AppManagementViewModel>() : new AppManagementViewModel(
-            new Core.Services.AppConfigurationService(new Adapters.Persistence.YamlConfigRepository(), new Adapters.Persistence.JsonSettingsStorage(), new Adapters.Persistence.PathResolver(new Adapters.Persistence.JsonSettingsStorage())),
-            new Core.Services.IconManagementService(new Adapters.Icons.SkiaIconRenderer(), new Core.Services.AppConfigurationService(new Adapters.Persistence.YamlConfigRepository(), new Adapters.Persistence.JsonSettingsStorage(), new Adapters.Persistence.PathResolver(new Adapters.Persistence.JsonSettingsStorage()))),
-            new Core.Services.HotkeyService(new Adapters.Platform.WindowsHotkeyHook()),
-            new WindowService(App.Services!, new Adapters.Platform.WindowPlacementService())))
+        : this(CreateDefaultViewModel())
     {
         _viewModel.Initialize(apps, initialHotkey, initialConfigPath);
         LstApps.ItemsSource = new ListCollectionView(_viewModel.Apps);
-        TxtGlobalHotkey.Text = _viewModel.ConfiguredHotkey;
-        TxtConfigPath.Text = _viewModel.ConfigFilePath;
 
         if (_viewModel.Apps.Count > 0)
         {
             LstApps.SelectedIndex = 0;
         }
         UpdateReorderButtonStates();
+        Closing += AppManagementWindow_Closing;
+    }
+
+    private void AppManagementWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        try
+        {
+            _viewModel.SaveConfig();
+        }
+        catch { }
     }
 
     private void UpdateReorderButtonStates()
@@ -232,7 +250,16 @@ public partial class AppManagementWindow : FluentWindow
         else if (sender == TxtArguments) app.Arguments = TxtArguments.Text;
         else if (sender == TxtWorkingDirectory) app.WorkingDirectory = TxtWorkingDirectory.Text;
         else if (sender == TxtColor) { app.Color = TxtColor.Text; UpdateColorPreviews(); }
-        else if (sender == TxtSecondaryColor) { app.SecondaryColor = TxtSecondaryColor.Text; UpdateColorPreviews(); }
+        else if (sender == TxtSecondaryColor)
+        {
+            app.SecondaryColor = TxtSecondaryColor.Text;
+            if (!string.IsNullOrWhiteSpace(app.SecondaryColor) && (string.IsNullOrWhiteSpace(app.BackgroundType) || app.BackgroundType == "Solid"))
+            {
+                app.BackgroundType = "Gradient";
+                SetComboTag(CmbBackgroundType, "Gradient");
+            }
+            UpdateColorPreviews();
+        }
         else if (sender == TxtGlyphColor) { app.CustomGlyphColor = TxtGlyphColor.Text; UpdateColorPreviews(); }
         else if (sender == TxtLabel) app.Label = TxtLabel.Text;
         else if (sender == TxtFaviconPath) app.FaviconPath = TxtFaviconPath.Text;
@@ -279,112 +306,89 @@ public partial class AppManagementWindow : FluentWindow
 
     private void BtnPickColor_Click(object sender, RoutedEventArgs e)
     {
-        using var dialog = new ColorDialog();
-        try
+        string currentHex = TxtColor.Text?.Trim() ?? "#1E88E4";
+        string? chosen = ColorPickerWindow.ShowDialog(this, currentHex, hex =>
         {
-            if (!string.IsNullOrEmpty(TxtColor.Text))
+            TxtColor.Text = hex;
+            if (LstApps.SelectedItem is AppInfo app)
             {
-                dialog.Color = System.Drawing.ColorTranslator.FromHtml(TxtColor.Text);
+                app.Color = hex;
+                UpdateColorPreviews();
+                RegeneratePreview(app);
             }
-        }
-        catch { }
+        });
 
-        if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+        if (chosen != null)
         {
-            TxtColor.Text = $"#{dialog.Color.R:X2}{dialog.Color.G:X2}{dialog.Color.B:X2}";
+            TxtColor.Text = chosen;
+            if (LstApps.SelectedItem is AppInfo app)
+            {
+                app.Color = chosen;
+                UpdateColorPreviews();
+                RegeneratePreview(app);
+            }
         }
     }
 
     private void BtnPickSecondaryColor_Click(object sender, RoutedEventArgs e)
     {
-        using var dialog = new ColorDialog();
-        try
+        string currentHex = TxtSecondaryColor.Text?.Trim() ?? "#DD2476";
+        string? chosen = ColorPickerWindow.ShowDialog(this, currentHex, hex =>
         {
-            if (!string.IsNullOrEmpty(TxtSecondaryColor.Text))
+            TxtSecondaryColor.Text = hex;
+            if (LstApps.SelectedItem is AppInfo app)
             {
-                dialog.Color = System.Drawing.ColorTranslator.FromHtml(TxtSecondaryColor.Text);
+                app.SecondaryColor = hex;
+                if (!string.IsNullOrWhiteSpace(app.SecondaryColor) && (string.IsNullOrWhiteSpace(app.BackgroundType) || app.BackgroundType == "Solid"))
+                {
+                    app.BackgroundType = "Gradient";
+                    SetComboTag(CmbBackgroundType, "Gradient");
+                }
+                UpdateColorPreviews();
+                RegeneratePreview(app);
             }
-        }
-        catch { }
+        });
 
-        if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+        if (chosen != null)
         {
-            TxtSecondaryColor.Text = $"#{dialog.Color.R:X2}{dialog.Color.G:X2}{dialog.Color.B:X2}";
+            TxtSecondaryColor.Text = chosen;
+            if (LstApps.SelectedItem is AppInfo app)
+            {
+                app.SecondaryColor = chosen;
+                if (!string.IsNullOrWhiteSpace(app.SecondaryColor) && (string.IsNullOrWhiteSpace(app.BackgroundType) || app.BackgroundType == "Solid"))
+                {
+                    app.BackgroundType = "Gradient";
+                    SetComboTag(CmbBackgroundType, "Gradient");
+                }
+                UpdateColorPreviews();
+                RegeneratePreview(app);
+            }
         }
     }
 
     private void BtnPickGlyphColor_Click(object sender, RoutedEventArgs e)
     {
-        using var dialog = new ColorDialog();
-        try
+        string currentHex = TxtGlyphColor.Text?.Trim() ?? "#FFFFFF";
+        string? chosen = ColorPickerWindow.ShowDialog(this, currentHex, hex =>
         {
-            if (!string.IsNullOrEmpty(TxtGlyphColor.Text))
+            TxtGlyphColor.Text = hex;
+            if (LstApps.SelectedItem is AppInfo app)
             {
-                dialog.Color = System.Drawing.ColorTranslator.FromHtml(TxtGlyphColor.Text);
+                app.CustomGlyphColor = hex;
+                UpdateColorPreviews();
+                RegeneratePreview(app);
             }
-        }
-        catch { }
+        });
 
-        if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+        if (chosen != null)
         {
-            TxtGlyphColor.Text = $"#{dialog.Color.R:X2}{dialog.Color.G:X2}{dialog.Color.B:X2}";
-        }
-    }
-
-    private void BtnBrowseConfigPath_Click(object sender, RoutedEventArgs e)
-    {
-        using var dialog = new System.Windows.Forms.OpenFileDialog
-        {
-            Title = "Select Catalyst Configuration File",
-            Filter = "YAML Files (*.yaml;*.yml)|*.yaml;*.yml|All Files (*.*)|*.*",
-            InitialDirectory = Path.GetDirectoryName(ConfigFilePath) ?? AppDomain.CurrentDomain.BaseDirectory
-        };
-
-        if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-        {
-            TxtConfigPath.Text = dialog.FileName;
-            LoadConfigFromPath(dialog.FileName);
-        }
-    }
-
-    private void BtnLoadConfigPath_Click(object sender, RoutedEventArgs e)
-    {
-        string path = TxtConfigPath.Text?.Trim() ?? "";
-        if (!string.IsNullOrEmpty(path))
-        {
-            LoadConfigFromPath(path);
-        }
-    }
-
-    private void BtnResetConfigPath_Click(object sender, RoutedEventArgs e)
-    {
-        string defaultPath = Catalyst.Services.ConfigService.GetDefaultConfigPath();
-        TxtConfigPath.Text = defaultPath;
-        LoadConfigFromPath(defaultPath);
-    }
-
-    private void LoadConfigFromPath(string path)
-    {
-        try
-        {
-            _viewModel.ConfigFilePath = path;
-            _viewModel.Initialize(null, null, path);
-            TxtConfigPath.Text = path;
-            TxtGlobalHotkey.Text = _viewModel.ConfiguredHotkey;
-
-            if (_viewModel.Apps.Count > 0)
+            TxtGlyphColor.Text = chosen;
+            if (LstApps.SelectedItem is AppInfo app)
             {
-                LstApps.SelectedIndex = 0;
+                app.CustomGlyphColor = chosen;
+                UpdateColorPreviews();
+                RegeneratePreview(app);
             }
-
-            LblGenesisStatus.Text = $"Loaded from {Path.GetFileName(path)}";
-            LblGenesisStatus.Foreground = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#60A5FA"));
-        }
-        catch (Exception ex)
-        {
-            LblGenesisStatus.Text = "Error loading configuration";
-            LblGenesisStatus.Foreground = System.Windows.Media.Brushes.Red;
-            System.Windows.MessageBox.Show($"Error loading configuration: {ex.Message}", "Catalyst", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
         }
     }
 
@@ -516,7 +520,7 @@ public partial class AppManagementWindow : FluentWindow
         {
             Title = "Select Project Favicon Target",
             InitialDirectory = rootDir,
-            Filter = "Icon Files (*.ico;*.png)|*.ico;*.png|All Files (*.*)|*.*"
+            Filter = "Icon / Vector Files (*.ico;*.png;*.svg)|*.ico;*.png;*.svg|ICO Files (*.ico)|*.ico|PNG Files (*.png)|*.png|SVG Files (*.svg)|*.svg|All Files (*.*)|*.*"
         };
 
         if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
@@ -536,9 +540,12 @@ public partial class AppManagementWindow : FluentWindow
 
         try
         {
+            _viewModel.SaveConfig();
+
             _viewModel.GenerateIcon(app, (msg) => Debug.WriteLine(msg));
 
-            string iconPath = Path.Combine(_viewModel.RootDir, "icons", app.Name, $"{app.Name}.png");
+            string rootDir = RootDir;
+            string iconPath = Path.Combine(rootDir, "icons", app.Name, $"{app.Name}.png");
             if (File.Exists(iconPath))
             {
                 app.IconPath = iconPath;
@@ -546,6 +553,8 @@ public partial class AppManagementWindow : FluentWindow
 
             app.RefreshIcons();
             RegeneratePreview(app);
+            _viewModel.SaveConfig();
+
             LblGenesisStatus.Text = $"Icon saved for {app.Name}";
             LblGenesisStatus.Foreground = System.Windows.Media.Brushes.Green;
         }
@@ -555,14 +564,6 @@ public partial class AppManagementWindow : FluentWindow
             LblGenesisStatus.Foreground = System.Windows.Media.Brushes.Red;
             System.Windows.MessageBox.Show($"Error generating icon: {ex.Message}");
         }
-    }
-
-    private void BtnApplyHotkey_Click(object sender, RoutedEventArgs e)
-    {
-        string newHotkey = TxtGlobalHotkey.Text?.Trim() ?? "Alt+Space";
-        ConfiguredHotkey = newHotkey;
-        LblGenesisStatus.Text = $"Hotkey set to {newHotkey}";
-        LblGenesisStatus.Foreground = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#60A5FA"));
     }
 
     private void BtnAdd_Click(object sender, RoutedEventArgs e)
@@ -725,21 +726,10 @@ public partial class AppManagementWindow : FluentWindow
 
     private void BtnSave_Click(object sender, RoutedEventArgs e)
     {
-        string targetConfigPath = TxtConfigPath.Text?.Trim() ?? "";
-        if (string.IsNullOrWhiteSpace(targetConfigPath))
-        {
-            targetConfigPath = _viewModel.ConfigFilePath;
-        }
-        else
-        {
-            targetConfigPath = Path.GetFullPath(targetConfigPath);
-        }
-
-        ConfigFilePath = targetConfigPath;
+        string targetConfigPath = _viewModel.ConfigFilePath;
 
         try
         {
-            ConfiguredHotkey = TxtGlobalHotkey.Text?.Trim() ?? "Alt+Space";
             _viewModel.SaveConfig();
 
             LblGenesisStatus.Text = $"Saved to {Path.GetFileName(targetConfigPath)}";
@@ -757,13 +747,15 @@ public partial class AppManagementWindow : FluentWindow
     private async void BtnGenerate_Click(object sender, RoutedEventArgs e)
     {
         BtnGenerate.IsEnabled = false;
-        BtnUpdateFavicons.IsEnabled = false;
+        if (BtnUpdateCurrentFavicon != null) BtnUpdateCurrentFavicon.IsEnabled = false;
         LblGenesisStatus.Text = "Generating icons...";
         LblGenesisStatus.Foreground = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#58A6FF"));
 
         try
         {
-            string rootDir = RootDir;
+            _viewModel.SaveConfig();
+
+            string iconsBaseDir = _viewModel.IconsBaseDir;
 
             await Task.Run(() =>
             {
@@ -772,12 +764,28 @@ public partial class AppManagementWindow : FluentWindow
 
             foreach (var app in _viewModel.Apps)
             {
-                string iconPath = Path.Combine(rootDir, "icons", app.Name, $"{app.Name}.png");
+                string iconPath = Path.Combine(iconsBaseDir, app.Name, $"{app.Name}.png");
                 if (File.Exists(iconPath))
                 {
                     app.IconPath = iconPath;
                 }
                 app.RefreshIcons();
+
+                if (string.IsNullOrEmpty(app.IconPath) || !File.Exists(app.IconPath))
+                {
+                    var preview = _viewModel.RenderPreview(app);
+                    if (preview != null)
+                    {
+                        app.PreviewSource = preview;
+                    }
+                }
+            }
+
+            _viewModel.SaveConfig();
+
+            if (LstApps.SelectedItem is AppInfo selectedApp)
+            {
+                RegeneratePreview(selectedApp);
             }
 
             LblGenesisStatus.Text = "Completed";
@@ -794,113 +802,58 @@ public partial class AppManagementWindow : FluentWindow
         finally
         {
             BtnGenerate.IsEnabled = true;
-            BtnUpdateFavicons.IsEnabled = true;
+            if (BtnUpdateCurrentFavicon != null) BtnUpdateCurrentFavicon.IsEnabled = true;
         }
     }
 
-    private async void BtnUpdateFavicons_Click(object sender, RoutedEventArgs e)
+    private async void BtnUpdateCurrentFavicon_Click(object sender, RoutedEventArgs e)
     {
-        BtnUpdateFavicons.IsEnabled = false;
+        if (LstApps.SelectedItem is not AppInfo app) return;
+
+        if (string.IsNullOrWhiteSpace(app.FaviconPath))
+        {
+            System.Windows.MessageBox.Show("Please configure a Project Favicon Path for this app first.", "Catalyst");
+            return;
+        }
+
+        if (BtnUpdateCurrentFavicon != null) BtnUpdateCurrentFavicon.IsEnabled = false;
         BtnGenerate.IsEnabled = false;
-        LblGenesisStatus.Text = "Updating Favicons...";
+        LblGenesisStatus.Text = $"Updating favicon for {app.Name}...";
         LblGenesisStatus.Foreground = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#58A6FF"));
 
         try
         {
-            string rootDir = RootDir;
+            _viewModel.SaveConfig();
 
-            int updatedCount = 0;
+            bool success = false;
             await Task.Run(() =>
             {
-                foreach (var app in _viewModel.Apps)
-                {
-                    if (string.IsNullOrEmpty(app.FaviconPath)) continue;
-
-                    string fullFaviconPath = Path.IsPathRooted(app.FaviconPath)
-                        ? app.FaviconPath
-                        : Path.GetFullPath(Path.Combine(rootDir, app.FaviconPath));
-
-                    string generatedIcoPath = Path.Combine(rootDir, "icons", app.Name, "favicon.ico");
-                    string generatedPngPath = Path.Combine(rootDir, "icons", app.Name, "favicon-32x32.png");
-
-                    if (File.Exists(generatedIcoPath) && fullFaviconPath.EndsWith(".ico", StringComparison.OrdinalIgnoreCase))
-                    {
-                        Directory.CreateDirectory(Path.GetDirectoryName(fullFaviconPath)!);
-                        File.Copy(generatedIcoPath, fullFaviconPath, true);
-                        updatedCount++;
-
-                        if (!string.IsNullOrEmpty(app.ProjectPath) && app.ProjectPath.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
-                        {
-                            UpdateCsprojApplicationIcon(app.ProjectPath, fullFaviconPath, rootDir);
-                        }
-                    }
-                    else if (File.Exists(generatedPngPath) && fullFaviconPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
-                    {
-                        Directory.CreateDirectory(Path.GetDirectoryName(fullFaviconPath)!);
-                        File.Copy(generatedPngPath, fullFaviconPath, true);
-                        updatedCount++;
-                    }
-                }
+                success = _viewModel.UpdateProjectFavicon(app, (msg) => Debug.WriteLine(msg));
             });
 
-            LblGenesisStatus.Text = $"Updated {updatedCount} projects";
-            LblGenesisStatus.Foreground = System.Windows.Media.Brushes.Green;
-            System.Windows.MessageBox.Show($"Successfully updated {updatedCount} project favicons.");
+            if (success)
+            {
+                LblGenesisStatus.Text = $"Updated favicon for {app.Name}";
+                LblGenesisStatus.Foreground = System.Windows.Media.Brushes.Green;
+                System.Windows.MessageBox.Show($"Successfully updated project favicon for '{app.Name}'.", "Catalyst");
+            }
+            else
+            {
+                LblGenesisStatus.Text = "Failed to update favicon";
+                LblGenesisStatus.Foreground = System.Windows.Media.Brushes.OrangeRed;
+                System.Windows.MessageBox.Show($"Could not update favicon for '{app.Name}'. Ensure the icon is generated and the target path is valid.", "Catalyst");
+            }
         }
         catch (Exception ex)
         {
             LblGenesisStatus.Text = "Error";
             LblGenesisStatus.Foreground = System.Windows.Media.Brushes.Red;
-            System.Windows.MessageBox.Show($"Error updating favicons: {ex.Message}");
+            System.Windows.MessageBox.Show($"Error updating favicon: {ex.Message}", "Catalyst");
         }
         finally
         {
-            BtnUpdateFavicons.IsEnabled = true;
+            if (BtnUpdateCurrentFavicon != null) BtnUpdateCurrentFavicon.IsEnabled = true;
             BtnGenerate.IsEnabled = true;
-        }
-    }
-
-    private void UpdateCsprojApplicationIcon(string projectPath, string iconPath, string rootDir)
-    {
-        try
-        {
-            string fullProjectPath = Path.IsPathRooted(projectPath) ? projectPath : Path.GetFullPath(Path.Combine(rootDir, projectPath));
-            if (!File.Exists(fullProjectPath)) return;
-
-            string projectDir = Path.GetDirectoryName(fullProjectPath)!;
-            string relativeIconPath = Path.GetRelativePath(projectDir, iconPath);
-
-            string content = File.ReadAllText(fullProjectPath);
-            bool modified = false;
-
-            if (content.Contains("<ApplicationIcon>"))
-            {
-                var regex = new System.Text.RegularExpressions.Regex(@"<ApplicationIcon>.*?</ApplicationIcon>");
-                string newContent = regex.Replace(content, $"<ApplicationIcon>{relativeIconPath}</ApplicationIcon>");
-                if (newContent != content)
-                {
-                    content = newContent;
-                    modified = true;
-                }
-            }
-            else
-            {
-                int index = content.IndexOf("</PropertyGroup>");
-                if (index > 0)
-                {
-                    content = content.Insert(index, $"    <ApplicationIcon>{relativeIconPath}</ApplicationIcon>\n    ");
-                    modified = true;
-                }
-            }
-
-            if (modified)
-            {
-                File.WriteAllText(fullProjectPath, content);
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"Failed to update csproj {projectPath}: {ex.Message}");
         }
     }
 }

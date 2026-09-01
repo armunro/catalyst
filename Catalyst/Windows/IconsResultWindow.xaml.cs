@@ -21,14 +21,24 @@ public partial class IconsResultWindow : FluentWindow
         var items = generatedIcons
             .Where(x => File.Exists(x.IconPath))
             .Select(x => {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.UriSource = new Uri(Path.GetFullPath(x.IconPath));
-                bitmap.EndInit();
-                bitmap.Freeze();
-                return new { x.AppName, IconSource = bitmap };
+                try
+                {
+                    byte[] bytes = File.ReadAllBytes(x.IconPath);
+                    using var stream = new MemoryStream(bytes);
+                    var bitmap = new BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                    bitmap.StreamSource = stream;
+                    bitmap.EndInit();
+                    bitmap.Freeze();
+                    return new { x.AppName, IconSource = (BitmapSource)bitmap };
+                }
+                catch
+                {
+                    return null;
+                }
             })
+            .Where(x => x != null)
             .ToList();
             
         IconsItemsControl.ItemsSource = items;

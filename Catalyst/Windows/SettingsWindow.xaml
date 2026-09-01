@@ -1,0 +1,168 @@
+﻿<ui:FluentWindow x:Class="Catalyst.Windows.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:local="clr-namespace:Catalyst.Windows"
+        Title="Catalyst - Settings" Height="560" Width="600"
+        Icon="pack://application:,,,/favicon.ico"
+        MinWidth="520" MinHeight="480"
+        WindowBackdropType="Mica"
+        ExtendsContentIntoTitleBar="True"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResizeWithGrip">
+
+    <Grid Background="Transparent">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/> <!-- TitleBar -->
+            <RowDefinition Height="*"/>    <!-- Content -->
+            <RowDefinition Height="Auto"/> <!-- Footer -->
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="Catalyst - Settings" ShowMaximize="False">
+            <ui:TitleBar.Icon>
+                <ui:ImageIcon Source="pack://application:,,,/favicon.ico"/>
+            </ui:TitleBar.Icon>
+        </ui:TitleBar>
+
+        <ScrollViewer Grid.Row="1" Margin="16,4,16,12" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,0,8,0">
+                <!-- Configuration File Card -->
+                <Border Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,0,16">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8" VerticalAlignment="Center">
+                            <ui:SymbolIcon Symbol="DocumentTableSearch24" Margin="0,0,8,0" Foreground="#60A5FA"/>
+                            <TextBlock Text="CONFIGURATION FILE" FontSize="12" FontWeight="Bold" Foreground="#60A5FA" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock Text="Specify the path to the YAML file where application configurations and launcher metadata are stored."
+                                   Foreground="#94A3B8" FontSize="12" Margin="0,0,0,12" TextWrapping="Wrap"/>
+
+                        <TextBlock Text="Configuration File Path (apps.yaml)" Margin="0,0,0,4" Foreground="#94A3B8" FontSize="12"/>
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ui:TextBox Name="TxtConfigPath"
+                                        Text="{Binding ConfigFilePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        PlaceholderText="Path to apps.yaml"
+                                        Margin="0,0,6,0"/>
+                            <ui:Button Name="BtnBrowseConfigPath"
+                                       Grid.Column="1"
+                                       Content="Browse..."
+                                       Icon="{ui:SymbolIcon FolderOpen20}"
+                                       Appearance="Secondary"
+                                       Click="BtnBrowseConfigPath_Click"/>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                            <ui:Button Name="BtnLoadConfigPath"
+                                       Content="Load Configuration"
+                                       Icon="{ui:SymbolIcon DocumentArrowRight20}"
+                                       Appearance="Secondary"
+                                       Margin="0,0,8,0"
+                                       Click="BtnLoadConfigPath_Click"/>
+                            <ui:Button Name="BtnResetConfigPath"
+                                       Content="Reset to Default"
+                                       Icon="{ui:SymbolIcon ArrowReset20}"
+                                       Appearance="Secondary"
+                                       Click="BtnResetConfigPath_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Output Icon Directory Card -->
+                <Border Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,0,16">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8" VerticalAlignment="Center">
+                            <ui:SymbolIcon Symbol="Folder24" Margin="0,0,8,0" Foreground="#60A5FA"/>
+                            <TextBlock Text="OUTPUT ICON DIRECTORY" FontSize="12" FontWeight="Bold" Foreground="#60A5FA" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock Text="Specify the directory where generated application icons, favicons, and vector SVGs are saved."
+                                   Foreground="#94A3B8" FontSize="12" Margin="0,0,0,12" TextWrapping="Wrap"/>
+
+                        <TextBlock Text="Output Icon Directory Path" Margin="0,0,0,4" Foreground="#94A3B8" FontSize="12"/>
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ui:TextBox Name="TxtIconsDir"
+                                        Text="{Binding IconsDirectory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        PlaceholderText="Path to icons directory"
+                                        Margin="0,0,6,0"/>
+                            <ui:Button Name="BtnBrowseIconsDir"
+                                       Grid.Column="1"
+                                       Content="Browse..."
+                                       Icon="{ui:SymbolIcon FolderOpen20}"
+                                       Appearance="Secondary"
+                                       Click="BtnBrowseIconsDir_Click"/>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                            <ui:Button Name="BtnResetIconsDir"
+                                       Content="Reset to Default"
+                                       Icon="{ui:SymbolIcon ArrowReset20}"
+                                       Appearance="Secondary"
+                                       Click="BtnResetIconsDir_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Global Hotkey Card -->
+                <Border Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,0,8">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8" VerticalAlignment="Center">
+                            <ui:SymbolIcon Symbol="Keyboard24" Margin="0,0,8,0" Foreground="#60A5FA"/>
+                            <TextBlock Text="GLOBAL HOTKEY" FontSize="12" FontWeight="Bold" Foreground="#60A5FA" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock Text="Configure the global keyboard shortcut used to quickly show or hide the Catalyst launcher window."
+                                   Foreground="#94A3B8" FontSize="12" Margin="0,0,0,12" TextWrapping="Wrap"/>
+
+                        <TextBlock Text="Shortcut Combination (e.g. Alt+Space, Ctrl+Space, Alt+Shift+C)" Margin="0,0,0,4" Foreground="#94A3B8" FontSize="12"/>
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="280"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ui:TextBox Name="TxtGlobalHotkey"
+                                        Text="{Binding ConfiguredHotkey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        PlaceholderText="Alt+Space"
+                                        Margin="0,0,6,0"/>
+                            <ui:Button Name="BtnApplyHotkey"
+                                       Grid.Column="1"
+                                       Content="Test &amp; Apply"
+                                       Icon="{ui:SymbolIcon Checkmark20}"
+                                       Appearance="Secondary"
+                                       Click="BtnApplyHotkey_Click"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer -->
+        <Border Grid.Row="2" Background="#10FFFFFF" Padding="16,10" BorderBrush="#15FFFFFF" BorderThickness="0,1,0,0">
+            <DockPanel>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" DockPanel.Dock="Left">
+                    <TextBlock Name="LblStatus"
+                               Text="{Binding StatusMessage}"
+                               Foreground="{Binding StatusBrush}"
+                               FontSize="12"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <ui:Button Name="BtnSave"
+                               Content="Save"
+                               Icon="{ui:SymbolIcon Save20}"
+                               Appearance="Success"
+                               Margin="0,0,8,0"
+                               Click="BtnSave_Click"/>
+                    <ui:Button Name="BtnClose"
+                               Content="Close"
+                               Appearance="Secondary"
+                               Click="BtnClose_Click"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+    </Grid>
+</ui:FluentWindow>

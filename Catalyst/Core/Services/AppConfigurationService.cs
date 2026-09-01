@@ -28,24 +28,26 @@ public class AppConfigurationService : IAppConfigurationService
 
     public string RootDir => _pathResolver.GetRootDir(ActiveConfigPath);
 
-    public string IconsBaseDir => Path.Combine(RootDir, "icons");
+    public string IconsBaseDir => _pathResolver.GetIconsDir(ActiveConfigPath);
 
     public string ConfiguredHotkey { get; set; } = "Alt+Space";
 
     public void SetCustomConfigPath(string? path)
     {
-        _pathResolver.CustomConfigPath = path;
+        string? normalizedPath = string.IsNullOrWhiteSpace(path) ? null : Adapters.Persistence.PathResolver.NormalizePath(path);
+        _pathResolver.CustomConfigPath = normalizedPath;
+        SetConfigPathPreference(normalizedPath);
     }
 
     public string? GetCustomConfigPath()
     {
-        return _pathResolver.CustomConfigPath;
+        return _pathResolver.CustomConfigPath ?? GetConfigPathPreference();
     }
 
     public void SetConfigPathPreference(string? path)
     {
         var settings = _settingsStorage.LoadSettings() ?? new UserSettings();
-        settings.ConfigPath = path;
+        settings.ConfigPath = string.IsNullOrWhiteSpace(path) ? null : Adapters.Persistence.PathResolver.NormalizePath(path);
         _settingsStorage.SaveSettings(settings);
     }
 
@@ -54,11 +56,35 @@ public class AppConfigurationService : IAppConfigurationService
         return _settingsStorage.LoadSettings()?.ConfigPath;
     }
 
+    public void SetCustomIconsDir(string? path)
+    {
+        string? normalized = string.IsNullOrWhiteSpace(path) ? null : Adapters.Persistence.PathResolver.NormalizeDirectoryPath(path);
+        _pathResolver.CustomIconsDir = normalized;
+        SetIconsDirPreference(normalized);
+    }
+
+    public string? GetCustomIconsDir()
+    {
+        return _pathResolver.CustomIconsDir ?? GetIconsDirPreference();
+    }
+
+    public void SetIconsDirPreference(string? path)
+    {
+        var settings = _settingsStorage.LoadSettings() ?? new UserSettings();
+        settings.IconsDir = string.IsNullOrWhiteSpace(path) ? null : Adapters.Persistence.PathResolver.NormalizeDirectoryPath(path);
+        _settingsStorage.SaveSettings(settings);
+    }
+
+    public string? GetIconsDirPreference()
+    {
+        return _settingsStorage.LoadSettings()?.IconsDir;
+    }
+
     public List<AppInfo> LoadApps(string? configPath = null)
     {
         string path = configPath ?? ActiveConfigPath;
         string rootDir = _pathResolver.GetRootDir(path);
-        string iconsDir = Path.Combine(rootDir, "icons");
+        string iconsDir = IconsBaseDir;
 
         var apps = new List<AppInfo>();
         var configFile = _configRepository.LoadConfigFile(path);
@@ -97,18 +123,24 @@ public class AppConfigurationService : IAppConfigurationService
     public void SaveApps(IEnumerable<AppInfo> apps, string? hotkey = null, string? configPath = null)
     {
         string path = configPath ?? ActiveConfigPath;
-        var configFile = CreateConfigFile(apps, hotkey);
+        var configFile = CreateConfigFile(apps, hotkey, path);
         _configRepository.SaveConfigFile(configFile, path);
     }
 
     public AppConfigFile CreateConfigFile(IEnumerable<AppInfo> apps)
     {
-        return CreateConfigFile(apps, null);
+        return CreateConfigFile(apps, null, ActiveConfigPath);
     }
 
     public AppConfigFile CreateConfigFile(IEnumerable<AppInfo> apps, string? hotkey = null)
     {
-        string rootDir = RootDir;
+        return CreateConfigFile(apps, hotkey, ActiveConfigPath);
+    }
+
+    public AppConfigFile CreateConfigFile(IEnumerable<AppInfo> apps, string? hotkey, string? configPath)
+    {
+        string path = configPath ?? ActiveConfigPath;
+        string rootDir = _pathResolver.GetRootDir(path);
         var configFile = new AppConfigFile
         {
             Hotkey = hotkey ?? ConfiguredHotkey
@@ -178,7 +210,7 @@ public class AppConfigurationService : IAppConfigurationService
             RunAsAdmin = entry.Launch?.RunAsAdmin ?? false,
             Color = !string.IsNullOrWhiteSpace(entry.Icon?.Color) ? entry.Icon.Color : "#1E88E4",
             SecondaryColor = entry.Icon?.SecondaryColor ?? string.Empty,
-            BackgroundType = !string.IsNullOrWhiteSpace(entry.Icon?.BackgroundType) ? entry.Icon.BackgroundType : "Solid",
+            BackgroundType = !string.IsNullOrWhiteSpace(entry.Icon?.BackgroundType) ? entry.Icon.BackgroundType : (!string.IsNullOrWhiteSpace(entry.Icon?.SecondaryColor) ? "Gradient" : "Solid"),
             GradientDirection = !string.IsNullOrWhiteSpace(entry.Icon?.GradientDirection) ? entry.Icon.GradientDirection : "Diagonal",
             Label = entry.Icon?.Label ?? string.Empty,
             IconPath = iconPath,
@@ -190,12 +222,22 @@ public class AppConfigurationService : IAppConfigurationService
             IsHidden = entry.Hidden
         };
 
+        if (string.IsNullOrEmpty(appInfo.IconPath))
+        {
+            string defaultIconPath = Path.Combine(iconsDir, appInfo.Name, $"{appInfo.Name}.png");
+            if (File.Exists(defaultIconPath))
+            {
+                appInfo.IconPath = defaultIconPath;
+            }
+        }
+
         if (string.IsNullOrEmpty(appInfo.FaviconPath))
         {
             string appIconDir = Path.Combine(iconsDir, appInfo.Name);
             string icoPath = Path.Combine(appIconDir, "favicon.ico");
             string png32Path = Path.Combine(appIconDir, "favicon-32x32.png");
             string pngPath = Path.Combine(appIconDir, $"{appInfo.Name}.png");
+            string svgPath = Path.Combine(appIconDir, $"{appInfo.Name}.svg");
 
             if (File.Exists(icoPath))
             {
@@ -208,6 +250,10 @@ public class AppConfigurationService : IAppConfigurationService
             else if (File.Exists(pngPath))
             {
                 appInfo.FaviconPath = pngPath;
+            }
+            else if (File.Exists(svgPath))
+            {
+                appInfo.FaviconPath = svgPath;
             }
         }
 

@@ -33,7 +33,7 @@
                         <Border Background="#15FFFFFF" BorderBrush="#25FFFFFF" BorderThickness="1"
                                 CornerRadius="8" Margin="8" Padding="12" Width="140">
                             <StackPanel HorizontalAlignment="Center">
-                                <Border Width="100" Height="100" Background="#20FFFFFF" CornerRadius="8" ClipToBounds="True">
+                                <Border Width="100" Height="100" Background="Transparent" CornerRadius="8" ClipToBounds="True">
                                     <Image Source="{Binding IconSource}" Stretch="Uniform"
                                            RenderOptions.BitmapScalingMode="HighQuality"
                                            RenderOptions.EdgeMode="Unspecified"/>

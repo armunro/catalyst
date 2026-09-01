@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
@@ -16,6 +17,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
     private readonly IAppLauncherService _launcherService;
     private readonly IHotkeyService _hotkeyService;
     private readonly IWindowService _windowService;
+    private readonly IIconManagementService? _iconService;
 
     private string _searchText = string.Empty;
     private string _statusText = string.Empty;
@@ -28,12 +30,14 @@ public class MainWindowViewModel : INotifyPropertyChanged
         IAppConfigurationService configService,
         IAppLauncherService launcherService,
         IHotkeyService hotkeyService,
-        IWindowService windowService)
+        IWindowService windowService,
+        IIconManagementService? iconService = null)
     {
         _configService = configService;
         _launcherService = launcherService;
         _hotkeyService = hotkeyService;
         _windowService = windowService;
+        _iconService = iconService;
 
         Apps = new ObservableCollection<AppInfo>();
         SetupCollectionView();
@@ -95,6 +99,14 @@ public class MainWindowViewModel : INotifyPropertyChanged
         var loaded = _configService.LoadApps(customPath);
         foreach (var app in loaded)
         {
+            if (_iconService != null && (string.IsNullOrEmpty(app.IconPath) || !File.Exists(app.IconPath)))
+            {
+                var preview = _iconService.RenderPreview(app);
+                if (preview != null)
+                {
+                    app.PreviewSource = preview;
+                }
+            }
             app.PropertyChanged += App_PropertyChanged;
             Apps.Add(app);
         }
@@ -206,6 +218,12 @@ public class MainWindowViewModel : INotifyPropertyChanged
     public void OpenAppManagement(System.Windows.Window? owner = null)
     {
         _windowService.ShowAppManagement(owner);
+        LoadApps();
+    }
+
+    public void OpenSettings(System.Windows.Window? owner = null)
+    {
+        _windowService.ShowSettings(owner);
         LoadApps();
     }
 

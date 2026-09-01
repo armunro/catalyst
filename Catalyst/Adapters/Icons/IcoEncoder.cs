@@ -7,7 +7,13 @@ public static class IcoEncoder
 {
     public static void SaveAsIco(List<byte[]> images, List<(int Width, int Height)> dimensions, string outputPath)
     {
-        using var stream = File.Create(outputPath);
+        var dir = Path.GetDirectoryName(outputPath);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+
+        using var stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
         using var writer = new BinaryWriter(stream);
 
         // ICO Header

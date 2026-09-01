@@ -82,11 +82,14 @@ public class AppManagementViewModel : INotifyPropertyChanged
                 _configService.SetCustomConfigPath(value);
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(RootDir));
+                OnPropertyChanged(nameof(IconsBaseDir));
             }
         }
     }
 
     public string RootDir => _configService.RootDir;
+
+    public string IconsBaseDir => _configService.IconsBaseDir;
 
     public void Initialize(IEnumerable<AppInfo>? initialApps = null, string? initialHotkey = null, string? initialConfigPath = null)
     {
@@ -105,6 +108,14 @@ public class AppManagementViewModel : INotifyPropertyChanged
         {
             foreach (var app in initialApps)
             {
+                if (string.IsNullOrEmpty(app.IconPath) || !File.Exists(app.IconPath))
+                {
+                    var preview = _iconService.RenderPreview(app);
+                    if (preview != null)
+                    {
+                        app.PreviewSource = preview;
+                    }
+                }
                 Apps.Add(app);
             }
         }
@@ -113,6 +124,14 @@ public class AppManagementViewModel : INotifyPropertyChanged
             var loaded = _configService.LoadApps(ConfigFilePath);
             foreach (var app in loaded)
             {
+                if (string.IsNullOrEmpty(app.IconPath) || !File.Exists(app.IconPath))
+                {
+                    var preview = _iconService.RenderPreview(app);
+                    if (preview != null)
+                    {
+                        app.PreviewSource = preview;
+                    }
+                }
                 Apps.Add(app);
             }
         }
@@ -198,6 +217,10 @@ public class AppManagementViewModel : INotifyPropertyChanged
 
     public void SaveConfig()
     {
+        if (!string.IsNullOrWhiteSpace(ConfigFilePath))
+        {
+            _configService.SetCustomConfigPath(ConfigFilePath);
+        }
         _configService.SaveApps(Apps, ConfiguredHotkey, ConfigFilePath);
     }
 
@@ -214,6 +237,13 @@ public class AppManagementViewModel : INotifyPropertyChanged
     public void GenerateAllIcons(Action<string>? logger = null)
     {
         _iconService.GenerateAllIcons(Apps, logger);
+    }
+
+    public bool UpdateProjectFavicon(AppInfo? app = null, Action<string>? logger = null)
+    {
+        app ??= SelectedApp;
+        if (app == null) return false;
+        return _iconService.UpdateProjectFavicon(app, logger);
     }
 
     public void ShowIconsResult(System.Windows.Window? owner = null)

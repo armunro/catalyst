@@ -14,7 +14,8 @@ public class SkiaIconRenderer : IIconRenderer
 {
     private static readonly HttpClient HttpClient = new()
     {
-        DefaultRequestHeaders = { { "User-Agent", "CatalystIconGenerator" } }
+        DefaultRequestHeaders = { { "User-Agent", "CatalystIconGenerator" } },
+        Timeout = TimeSpan.FromSeconds(5)
     };
 
     public SKBitmap RenderIconBitmap(AppInfo app, int size, string iconsBaseDir, string? rootDir = null, Action<string>? logger = null)
@@ -62,15 +63,53 @@ public class SkiaIconRenderer : IIconRenderer
 
     public void SavePng(SKBitmap bitmap, string outputPath)
     {
+        var dir = Path.GetDirectoryName(outputPath);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+
         using var image = SKImage.FromBitmap(bitmap);
         using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-        using var stream = File.Open(outputPath, FileMode.Create, FileAccess.Write);
+        using var stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
         data.SaveTo(stream);
     }
 
     public void SaveAsIco(List<byte[]> pngByteArrays, List<(int Width, int Height)> dimensions, string outputPath)
     {
         IcoEncoder.SaveAsIco(pngByteArrays, dimensions, outputPath);
+    }
+
+    public string RenderIconSvg(AppInfo app, int size, string iconsBaseDir, string? rootDir = null, Action<string>? logger = null)
+    {
+        using var ms = new MemoryStream();
+        using (var canvas = SKSvgCanvas.Create(new SKRect(0, 0, size, size), ms))
+        {
+            RenderToCanvas(canvas, app, size, iconsBaseDir, rootDir, logger);
+        }
+        string svg = System.Text.Encoding.UTF8.GetString(ms.ToArray());
+        if (!svg.Contains("viewBox=", StringComparison.OrdinalIgnoreCase))
+        {
+            int index = svg.IndexOf("<svg", StringComparison.OrdinalIgnoreCase);
+            if (index >= 0)
+            {
+                int insertPos = index + 4;
+                svg = svg.Insert(insertPos, $" viewBox=\"0 0 {size} {size}\"");
+            }
+        }
+        return svg;
+    }
+
+    public void SaveSvg(AppInfo app, string outputPath, int size, string iconsBaseDir, string? rootDir = null, Action<string>? logger = null)
+    {
+        var dir = Path.GetDirectoryName(outputPath);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+
+        string svg = RenderIconSvg(app, size, iconsBaseDir, rootDir, logger);
+        File.WriteAllText(outputPath, svg, System.Text.Encoding.UTF8);
     }
 
     public static BitmapSource ToBitmapSource(SKBitmap bitmap)
@@ -206,7 +245,9 @@ public class SkiaIconRenderer : IIconRenderer
         float cornerRadius = size * 0.2f;
         var roundRect = new SKRoundRect(new SKRect(0, 0, size, size), cornerRadius, cornerRadius);
 
-        bool isGradient = string.Equals(backgroundType, "Gradient", StringComparison.OrdinalIgnoreCase);
+        bool isGradient = string.Equals(backgroundType, "Gradient", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(backgroundType, "2-Part Gradient", StringComparison.OrdinalIgnoreCase) ||
+                          (!string.IsNullOrWhiteSpace(secondaryColorHex) && !string.Equals(backgroundType, "Solid", StringComparison.OrdinalIgnoreCase));
 
         if (isGradient)
         {
@@ -230,11 +271,13 @@ public class SkiaIconRenderer : IIconRenderer
             switch (dir)
             {
                 case "vertical":
+                case "topbottom":
                 case "toptobottom":
                     p0 = new SKPoint(size / 2f, 0);
                     p1 = new SKPoint(size / 2f, size);
                     break;
                 case "horizontal":
+                case "leftright":
                 case "lefttoright":
                     p0 = new SKPoint(0, size / 2f);
                     p1 = new SKPoint(size, size / 2f);

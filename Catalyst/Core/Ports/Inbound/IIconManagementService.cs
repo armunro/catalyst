@@ -9,4 +9,5 @@ public interface IIconManagementService
     void GenerateIcon(AppInfo app, Action<string>? logger = null);
     void GenerateAllIcons(IEnumerable<AppInfo> apps, Action<string>? logger = null);
     BitmapSource? RenderPreview(AppInfo app, int size = 512);
+    bool UpdateProjectFavicon(AppInfo app, Action<string>? logger = null);
 }

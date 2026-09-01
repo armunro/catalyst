@@ -7,14 +7,90 @@ namespace Catalyst.Adapters.Persistence;
 public class PathResolver : IPathResolver
 {
     private const string DefaultFileName = "apps.yaml";
+    private const string DefaultIconsDirName = "icons";
     private readonly ISettingsStorage _settingsStorage;
+    private string? _customConfigPath;
+    private string? _customIconsDir;
 
     public PathResolver(ISettingsStorage settingsStorage)
     {
         _settingsStorage = settingsStorage;
     }
 
-    public string? CustomConfigPath { get; set; }
+    public string? CustomConfigPath
+    {
+        get => _customConfigPath;
+        set => _customConfigPath = string.IsNullOrWhiteSpace(value) ? null : NormalizePath(value);
+    }
+
+    public string? CustomIconsDir
+    {
+        get => _customIconsDir;
+        set => _customIconsDir = string.IsNullOrWhiteSpace(value) ? null : NormalizeDirectoryPath(value);
+    }
+
+    public static string NormalizeDirectoryPath(string rawPath)
+    {
+        if (string.IsNullOrWhiteSpace(rawPath)) return string.Empty;
+
+        string path = rawPath.Trim().Trim('\"', '\'').Trim();
+        if (string.IsNullOrWhiteSpace(path)) return string.Empty;
+
+        try
+        {
+            path = Environment.ExpandEnvironmentVariables(path);
+
+            if (path.StartsWith("~/", StringComparison.Ordinal) || path.StartsWith("~\\", StringComparison.Ordinal))
+            {
+                string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                path = Path.Combine(home, path[2..]);
+            }
+            else if (path == "~")
+            {
+                path = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            }
+
+            return Path.GetFullPath(path);
+        }
+        catch
+        {
+            return path;
+        }
+    }
+
+    public static string NormalizePath(string rawPath)
+    {
+        if (string.IsNullOrWhiteSpace(rawPath)) return string.Empty;
+
+        string path = rawPath.Trim().Trim('\"', '\'').Trim();
+        if (string.IsNullOrWhiteSpace(path)) return string.Empty;
+
+        try
+        {
+            path = Environment.ExpandEnvironmentVariables(path);
+
+            if (path.StartsWith("~/", StringComparison.Ordinal) || path.StartsWith("~\\", StringComparison.Ordinal))
+            {
+                string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                path = Path.Combine(home, path[2..]);
+            }
+            else if (path == "~")
+            {
+                path = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            }
+
+            if (Directory.Exists(path) || path.EndsWith(Path.DirectorySeparatorChar) || path.EndsWith(Path.AltDirectorySeparatorChar))
+            {
+                path = Path.Combine(path, DefaultFileName);
+            }
+
+            return Path.GetFullPath(path);
+        }
+        catch
+        {
+            return path;
+        }
+    }
 
     public string? ParseCommandLineConfigPath(string[]? args = null)
     {
@@ -23,7 +99,7 @@ public class PathResolver : IPathResolver
 
         for (int i = 0; i < args.Length; i++)
         {
-            string arg = args[i].Trim();
+            string arg = args[i].Trim().Trim('\"', '\'').Trim();
 
             // Match flags: --config, -c, /config, /c
             if (arg.Equals("--config", StringComparison.OrdinalIgnoreCase) ||
@@ -33,20 +109,20 @@ public class PathResolver : IPathResolver
             {
                 if (i + 1 < args.Length && !string.IsNullOrWhiteSpace(args[i + 1]))
                 {
-                    return args[i + 1].Trim();
+                    return NormalizePath(args[i + 1]);
                 }
             }
 
-            // Match prefixes: --config=, --config:, -c=, -c:, /config=, /config:, /c=, /c:
+            // Match prefixes: --config=, --config:, -c=, -c:, /config=", /config:, /c=, /c:
             string[] prefixes = { "--config=", "--config:", "-c=", "-c:", "/config=", "/config:", "/c=", "/c:" };
             foreach (var prefix in prefixes)
             {
                 if (arg.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                 {
-                    string val = arg[prefix.Length..].Trim();
+                    string val = arg[prefix.Length..].Trim().Trim('\"', '\'').Trim();
                     if (!string.IsNullOrWhiteSpace(val))
                     {
-                        return val;
+                        return NormalizePath(val);
                     }
                 }
             }
@@ -54,7 +130,7 @@ public class PathResolver : IPathResolver
             // Direct .yaml or .yml file argument (skip first arg if executable)
             if (i > 0 && (arg.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase) || arg.EndsWith(".yml", StringComparison.OrdinalIgnoreCase)))
             {
-                return arg;
+                return NormalizePath(arg);
             }
         }
 
@@ -64,9 +140,13 @@ public class PathResolver : IPathResolver
     public string? GetEnvironmentConfigPath()
     {
         string? env = Environment.GetEnvironmentVariable("CATALYST_CONFIG");
-        if (!string.IsNullOrWhiteSpace(env) && File.Exists(env))
+        if (!string.IsNullOrWhiteSpace(env))
         {
-            return Path.GetFullPath(env);
+            string normalized = NormalizePath(env);
+            if (File.Exists(normalized))
+            {
+                return normalized;
+            }
         }
 
         return null;
@@ -91,21 +171,25 @@ public class PathResolver : IPathResolver
 
     public string GetActiveConfigPath(string[]? args = null)
     {
-        if (!string.IsNullOrWhiteSpace(CustomConfigPath))
-            return Path.GetFullPath(CustomConfigPath);
+        if (!string.IsNullOrWhiteSpace(_customConfigPath))
+            return NormalizePath(_customConfigPath);
 
         string? cli = ParseCommandLineConfigPath(args);
         if (!string.IsNullOrWhiteSpace(cli))
-            return Path.GetFullPath(cli);
+            return NormalizePath(cli);
 
         string? env = GetEnvironmentConfigPath();
         if (!string.IsNullOrWhiteSpace(env))
-            return Path.GetFullPath(env);
+            return NormalizePath(env);
 
         var userSettings = _settingsStorage.LoadSettings();
         if (!string.IsNullOrWhiteSpace(userSettings?.ConfigPath))
         {
-            return Path.GetFullPath(userSettings.ConfigPath);
+            string normalized = NormalizePath(userSettings.ConfigPath);
+            if (!string.IsNullOrWhiteSpace(normalized))
+            {
+                return normalized;
+            }
         }
 
         return GetDefaultConfigPath();
@@ -113,8 +197,38 @@ public class PathResolver : IPathResolver
 
     public string GetRootDir(string? configPath = null)
     {
-        string activePath = string.IsNullOrWhiteSpace(configPath) ? GetActiveConfigPath() : configPath;
-        string? dir = Path.GetDirectoryName(Path.GetFullPath(activePath));
-        return string.IsNullOrWhiteSpace(dir) ? AppDomain.CurrentDomain.BaseDirectory : dir;
+        string activePath = string.IsNullOrWhiteSpace(configPath) ? GetActiveConfigPath() : NormalizePath(configPath);
+        try
+        {
+            string? dir = Path.GetDirectoryName(Path.GetFullPath(activePath));
+            return string.IsNullOrWhiteSpace(dir) ? AppDomain.CurrentDomain.BaseDirectory : dir;
+        }
+        catch
+        {
+            return AppDomain.CurrentDomain.BaseDirectory;
+        }
+    }
+
+    public string GetDefaultIconsDir(string? configPath = null)
+    {
+        return Path.Combine(GetRootDir(configPath), DefaultIconsDirName);
+    }
+
+    public string GetIconsDir(string? configPath = null)
+    {
+        if (!string.IsNullOrWhiteSpace(_customIconsDir))
+            return NormalizeDirectoryPath(_customIconsDir);
+
+        var userSettings = _settingsStorage.LoadSettings();
+        if (!string.IsNullOrWhiteSpace(userSettings?.IconsDir))
+        {
+            string normalized = NormalizeDirectoryPath(userSettings.IconsDir);
+            if (!string.IsNullOrWhiteSpace(normalized))
+            {
+                return normalized;
+            }
+        }
+
+        return GetDefaultIconsDir(configPath);
     }
 }

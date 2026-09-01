@@ -11,4 +11,6 @@ public interface IIconRenderer
     BitmapSource? RenderPreview(AppInfo app, string iconsBaseDir, string? rootDir = null, int size = 512);
     void SavePng(SKBitmap bitmap, string outputPath);
     void SaveAsIco(List<byte[]> pngByteArrays, List<(int Width, int Height)> dimensions, string outputPath);
+    void SaveSvg(AppInfo app, string outputPath, int size, string iconsBaseDir, string? rootDir = null, Action<string>? logger = null);
+    string RenderIconSvg(AppInfo app, int size, string iconsBaseDir, string? rootDir = null, Action<string>? logger = null);
 }

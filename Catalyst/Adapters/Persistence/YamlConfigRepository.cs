@@ -1,4 +1,8 @@
-﻿using System.IO;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
 using Catalyst.Core.Ports.Outbound;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
@@ -9,56 +13,139 @@ public class YamlConfigRepository : IConfigRepository
 {
     public AppConfigFile? LoadConfigFile(string configPath)
     {
-        if (!File.Exists(configPath))
+        if (string.IsNullOrWhiteSpace(configPath) || !File.Exists(configPath))
             return null;
 
-        string yaml = File.ReadAllText(configPath);
-
-        // First try CamelCase naming convention
-        try
+        string yaml = string.Empty;
+        for (int i = 0; i < 3; i++)
         {
-            var deserializer = new DeserializerBuilder()
-                .WithNamingConvention(CamelCaseNamingConvention.Instance)
-                .IgnoreUnmatchedProperties()
-                .Build();
-
-            var result = deserializer.Deserialize<AppConfigFile>(yaml);
-            if (result != null && (result.Apps.Count > 0 || !string.IsNullOrWhiteSpace(result.Hotkey)))
+            try
             {
-                return result;
+                using var stream = new FileStream(configPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var reader = new StreamReader(stream);
+                yaml = reader.ReadToEnd();
+                break;
+            }
+            catch (IOException) when (i < 2)
+            {
+                Thread.Sleep(30);
+            }
+            catch
+            {
+                return null;
             }
         }
-        catch { }
 
-        // Fallback to Underscored naming convention for legacy YAML files
-        try
-        {
-            var deserializer = new DeserializerBuilder()
-                .WithNamingConvention(UnderscoredNamingConvention.Instance)
-                .IgnoreUnmatchedProperties()
-                .Build();
+        if (string.IsNullOrWhiteSpace(yaml))
+            return new AppConfigFile();
 
-            return deserializer.Deserialize<AppConfigFile>(yaml);
-        }
-        catch
+        var conventions = new INamingConvention[]
         {
-            return null;
+            CamelCaseNamingConvention.Instance,
+            UnderscoredNamingConvention.Instance,
+            PascalCaseNamingConvention.Instance,
+            HyphenatedNamingConvention.Instance,
+            NullNamingConvention.Instance
+        };
+
+        AppConfigFile? bestResult = null;
+        int maxScore = -1;
+
+        foreach (var convention in conventions)
+        {
+            try
+            {
+                var deserializer = new DeserializerBuilder()
+                    .WithNamingConvention(convention)
+                    .IgnoreUnmatchedProperties()
+                    .Build();
+
+                var result = deserializer.Deserialize<AppConfigFile>(yaml);
+                if (result != null)
+                {
+                    int score = ScoreConfig(result);
+                    if (score > maxScore)
+                    {
+                        maxScore = score;
+                        bestResult = result;
+                    }
+                }
+            }
+            catch { }
         }
+
+        return bestResult ?? new AppConfigFile();
+    }
+
+    private static int ScoreConfig(AppConfigFile config)
+    {
+        int score = 0;
+        if (!string.IsNullOrWhiteSpace(config.Hotkey))
+        {
+            score += 5;
+        }
+
+        if (config.Apps != null)
+        {
+            score += config.Apps.Count * 10;
+            foreach (var app in config.Apps)
+            {
+                if (!string.IsNullOrWhiteSpace(app.Name)) score += 5;
+                if (!string.IsNullOrWhiteSpace(app.Launch?.ProjectPath)) score += 5;
+                if (!string.IsNullOrWhiteSpace(app.Launch?.ExecutablePath)) score += 5;
+                if (!string.IsNullOrWhiteSpace(app.Launch?.Arguments)) score += 2;
+                if (!string.IsNullOrWhiteSpace(app.Launch?.WorkingDirectory)) score += 2;
+                if (!string.IsNullOrWhiteSpace(app.Icon?.Color)) score += 2;
+                if (!string.IsNullOrWhiteSpace(app.Icon?.SecondaryColor)) score += 2;
+                if (!string.IsNullOrWhiteSpace(app.Icon?.BackgroundType)) score += 2;
+                if (!string.IsNullOrWhiteSpace(app.Icon?.GradientDirection)) score += 2;
+                if (!string.IsNullOrWhiteSpace(app.Icon?.Label)) score += 2;
+                if (!string.IsNullOrWhiteSpace(app.Icon?.IconPath)) score += 2;
+                if (!string.IsNullOrWhiteSpace(app.Icon?.FaviconPath)) score += 2;
+                if (!string.IsNullOrWhiteSpace(app.Icon?.BootstrapIcon)) score += 2;
+                if (!string.IsNullOrWhiteSpace(app.Icon?.CustomGlyphSvg)) score += 2;
+                if (!string.IsNullOrWhiteSpace(app.Icon?.CustomGlyphColor)) score += 2;
+                if (!string.IsNullOrWhiteSpace(app.Icon?.SvgOverride)) score += 2;
+            }
+        }
+
+        return score;
     }
 
     public void SaveConfigFile(AppConfigFile config, string configPath)
     {
-        string? dir = Path.GetDirectoryName(configPath);
-        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+        if (string.IsNullOrWhiteSpace(configPath)) return;
+
+        for (int i = 0; i < 3; i++)
         {
-            Directory.CreateDirectory(dir);
+            try
+            {
+                string? dir = Path.GetDirectoryName(configPath);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                {
+                    Directory.CreateDirectory(dir);
+                }
+
+                var serializer = new SerializerBuilder()
+                    .WithNamingConvention(CamelCaseNamingConvention.Instance)
+                    .Build();
+
+                string yaml = serializer.Serialize(config);
+
+                using var stream = new FileStream(configPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+                using var writer = new StreamWriter(stream);
+                writer.Write(yaml);
+                writer.Flush();
+                break;
+            }
+            catch (IOException) when (i < 2)
+            {
+                Thread.Sleep(30);
+            }
+            catch
+            {
+                break;
+            }
         }
-
-        var serializer = new SerializerBuilder()
-            .WithNamingConvention(CamelCaseNamingConvention.Instance)
-            .Build();
-
-        string yaml = serializer.Serialize(config);
-        File.WriteAllText(configPath, yaml);
     }
 }

@@ -30,7 +30,21 @@ public class WindowService : IWindowService
 
     public void ShowAppManagement(Window? owner = null)
     {
-        var window = _serviceProvider.GetRequiredService<AppManagementWindow>();
+        var window = _serviceProvider != null 
+            ? _serviceProvider.GetRequiredService<AppManagementWindow>()
+            : new AppManagementWindow();
+        if (owner != null)
+        {
+            window.Owner = owner;
+        }
+        window.ShowDialog();
+    }
+
+    public void ShowSettings(Window? owner = null)
+    {
+        var window = _serviceProvider != null
+            ? _serviceProvider.GetRequiredService<SettingsWindow>()
+            : new SettingsWindow();
         if (owner != null)
         {
             window.Owner = owner;

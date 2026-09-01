@@ -81,6 +81,7 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
             <ui:TextBox Name="TxtSearch"
@@ -103,11 +104,20 @@
 
             <ui:Button Name="BtnHeaderManage"
                        Grid.Column="2"
-                       Icon="{ui:SymbolIcon Settings20}"
+                       Icon="{ui:SymbolIcon AppsListDetail20}"
                        Appearance="Secondary"
                        ToolTip="Manage Apps (Ctrl+M)"
+                       Margin="0,0,4,0"
                        Padding="8,6"
                        Click="BtnManage_Click"/>
+
+            <ui:Button Name="BtnHeaderSettings"
+                       Grid.Column="3"
+                       Icon="{ui:SymbolIcon Settings20}"
+                       Appearance="Secondary"
+                       ToolTip="Settings (Ctrl+,)"
+                       Padding="8,6"
+                       Click="BtnSettings_Click"/>
         </Grid>
 
         <!-- Main Apps List (Modern Ditto Style) -->
@@ -204,16 +214,19 @@
                                 Width="34" Height="34"
                                 CornerRadius="6"
                                 Margin="0,0,10,0"
-                                Background="{Binding ColorBrush}"
                                 ClipToBounds="True"
                                 VerticalAlignment="Center">
                             <Grid>
+                                <!-- Fallback background when no icon image -->
+                                <Border Background="{Binding ColorBrush}"
+                                        CornerRadius="6"
+                                        Visibility="{Binding IconSource, Converter={StaticResource NullToVis}}"/>
                                 <!-- Icon Image -->
-                                <Image Source="{Binding IconSource32}"
-                                       Stretch="UniformToFill"
+                                <Image Source="{Binding IconSource}"
+                                       Stretch="Uniform"
                                        RenderOptions.BitmapScalingMode="HighQuality"
                                        RenderOptions.EdgeMode="Unspecified"
-                                       Visibility="{Binding IconSource32, Converter={StaticResource NotNullToVis}}"/>
+                                       Visibility="{Binding IconSource, Converter={StaticResource NotNullToVis}}"/>
                                 <!-- Fallback text badge if icon image is missing -->
                                 <TextBlock Text="{Binding Label}"
                                            FontWeight="Bold"
@@ -221,7 +234,7 @@
                                            Foreground="#FFFFFF"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"
-                                           Visibility="{Binding IconSource32, Converter={StaticResource NullToVis}}"/>
+                                           Visibility="{Binding IconSource, Converter={StaticResource NullToVis}}"/>
                             </Grid>
                         </Border>
 

@@ -43,6 +43,12 @@ public static class ConfigService
         set => GetPathResolver().CustomConfigPath = value;
     }
 
+    public static string? CustomIconsDir
+    {
+        get => GetPathResolver().CustomIconsDir;
+        set => GetPathResolver().CustomIconsDir = value;
+    }
+
     public static string? ParseCommandLineConfigPath(string[]? args = null) =>
         GetPathResolver().ParseCommandLineConfigPath(args);
 
@@ -60,8 +66,25 @@ public static class ConfigService
         storage.SaveSettings(settings);
     }
 
+    public static string? GetUserIconsDir() =>
+        GetSettingsStorage().LoadSettings()?.IconsDir;
+
+    public static void SetUserIconsDir(string? path)
+    {
+        var storage = GetSettingsStorage();
+        var settings = storage.LoadSettings() ?? new UserSettings();
+        settings.IconsDir = path;
+        storage.SaveSettings(settings);
+    }
+
     public static string GetDefaultConfigPath() =>
         GetPathResolver().GetDefaultConfigPath();
+
+    public static string GetDefaultIconsDir(string? configPath = null) =>
+        GetPathResolver().GetDefaultIconsDir(configPath);
+
+    public static string GetIconsDir(string? configPath = null) =>
+        GetPathResolver().GetIconsDir(configPath);
 
     public static string GetActiveConfigPath(string[]? args = null) =>
         GetPathResolver().GetActiveConfigPath(args);

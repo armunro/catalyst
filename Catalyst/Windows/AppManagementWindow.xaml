@@ -57,6 +57,7 @@
     <Grid Background="Transparent">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/> <!-- TitleBar -->
+            <RowDefinition Height="Auto"/> <!-- Global Action Toolbar -->
             <RowDefinition Height="*"/>    <!-- Content -->
         </Grid.RowDefinitions>
 
@@ -66,13 +67,31 @@
             </ui:TitleBar.Icon>
         </ui:TitleBar>
 
-        <Grid Grid.Row="1" Margin="14,0,14,14">
+        <!-- Top Action Toolbar above Application Settings area -->
+        <Border Grid.Row="1" Background="#14FFFFFF" BorderBrush="#20FFFFFF" BorderThickness="1" CornerRadius="8" Padding="12,8" Margin="14,0,14,10">
+            <DockPanel>
+                <TextBlock Name="LblGenesisStatus" Text="Ready" VerticalAlignment="Center" FontSize="11" Foreground="#94A3B8" Margin="0,0,4,0" DockPanel.Dock="Right"/>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <ui:Button Name="BtnSave" Content="Save Configuration"
+                               Icon="{ui:SymbolIcon Save20}"
+                               Appearance="Success"
+                               Margin="0,0,8,0"
+                               Click="BtnSave_Click"/>
+                    <ui:Button Name="BtnGenerate" Content="Generate All Icons"
+                               Icon="{ui:SymbolIcon Image20}"
+                               Appearance="Secondary"
+                               Click="BtnGenerate_Click"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <Grid Grid.Row="2" Margin="14,0,14,14">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="280"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Left Panel: Apps List & Global Actions -->
+            <!-- Left Panel: Apps List & Management Actions -->
             <Border Grid.Column="0" Background="#14FFFFFF" BorderBrush="#20FFFFFF" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,10,0">
                 <DockPanel>
                     <!-- Bottom Action Buttons -->
@@ -94,7 +113,7 @@
                                        Click="BtnRemove_Click"/>
                         </Grid>
 
-                        <Grid Margin="0,0,0,6">
+                        <Grid Margin="0,0,0,2">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
@@ -112,67 +131,6 @@
                                        ToolTip="Move selected app down (Alt+Down / Ctrl+Down)"
                                        Click="BtnMoveDown_Click"/>
                         </Grid>
-
-                        <ui:Button Name="BtnSave" Content="Save Configuration"
-                                   Icon="{ui:SymbolIcon Save20}"
-                                   Appearance="Success"
-                                   Margin="0,0,0,6"
-                                   HorizontalAlignment="Stretch"
-                                   Click="BtnSave_Click"/>
-
-                        <ui:Button Name="BtnGenerate" Content="Generate All Icons"
-                                   Icon="{ui:SymbolIcon Image20}"
-                                   Appearance="Secondary"
-                                   Margin="0,0,0,6"
-                                   HorizontalAlignment="Stretch"
-                                   Click="BtnGenerate_Click"/>
-
-                        <ui:Button Name="BtnUpdateFavicons" Content="Update Project Favicons"
-                                   Icon="{ui:SymbolIcon ArrowClockwise20}"
-                                   Appearance="Secondary"
-                                   Margin="0,0,0,8"
-                                   HorizontalAlignment="Stretch"
-                                   Click="BtnUpdateFavicons_Click"/>
-
-                        <!-- Configuration File Path Setting -->
-                        <Border Background="#10FFFFFF" BorderBrush="#20FFFFFF" BorderThickness="1" CornerRadius="6" Padding="8,6" Margin="0,0,0,6">
-                            <StackPanel>
-                                <TextBlock Text="Configuration File (apps.yaml)" FontSize="11" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,0,0,4"/>
-                                <Grid Margin="0,0,0,4">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <ui:TextBox Name="TxtConfigPath" PlaceholderText="Path to apps.yaml" Margin="0,0,4,0"/>
-                                    <ui:Button Name="BtnBrowseConfigPath" Grid.Column="1" Content="..." Appearance="Secondary" Padding="8,2" Click="BtnBrowseConfigPath_Click"/>
-                                </Grid>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <ui:Button Name="BtnLoadConfigPath" Grid.Column="0" Content="Load File" Appearance="Secondary" Margin="0,0,2,0" HorizontalAlignment="Stretch" Click="BtnLoadConfigPath_Click"/>
-                                    <ui:Button Name="BtnResetConfigPath" Grid.Column="1" Content="Default" Appearance="Secondary" Margin="2,0,0,0" HorizontalAlignment="Stretch" Click="BtnResetConfigPath_Click"/>
-                                </Grid>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Global Hotkey Setting -->
-                        <Border Background="#10FFFFFF" BorderBrush="#20FFFFFF" BorderThickness="1" CornerRadius="6" Padding="8,6" Margin="0,0,0,6">
-                            <StackPanel>
-                                <TextBlock Text="Global Hotkey" FontSize="11" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,0,0,4"/>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <ui:TextBox Name="TxtGlobalHotkey" PlaceholderText="Alt+Space" Margin="0,0,4,0"/>
-                                    <ui:Button Name="BtnApplyHotkey" Grid.Column="1" Content="Set" Appearance="Secondary" Padding="6,2" Click="BtnApplyHotkey_Click"/>
-                                </Grid>
-                            </StackPanel>
-                        </Border>
-
-                        <TextBlock Name="LblGenesisStatus" Text="Ready" HorizontalAlignment="Center" FontSize="11" Foreground="#94A3B8" Margin="0,2,0,0"/>
                     </StackPanel>
 
                     <!-- Apps List Header -->
@@ -198,19 +156,22 @@
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <Border Width="28" Height="28" CornerRadius="5" Margin="0,0,8,0" Background="{Binding ColorBrush}" ClipToBounds="True" VerticalAlignment="Center">
+                                    <Border Width="34" Height="34" CornerRadius="6" Margin="0,0,10,0" ClipToBounds="True" VerticalAlignment="Center">
                                         <Grid>
-                                            <Image Source="{Binding IconSource32}" Stretch="Uniform" Width="24" Height="24"
+                                            <Border Background="{Binding ColorBrush}"
+                                                    CornerRadius="6"
+                                                    Visibility="{Binding IconSource, Converter={StaticResource NullToVis}}"/>
+                                            <Image Source="{Binding IconSource}" Stretch="Uniform"
                                                    RenderOptions.BitmapScalingMode="HighQuality"
                                                    RenderOptions.EdgeMode="Unspecified"
-                                                   Visibility="{Binding IconSource32, Converter={StaticResource NotNullToVis}}"/>
+                                                   Visibility="{Binding IconSource, Converter={StaticResource NotNullToVis}}"/>
                                             <TextBlock Text="{Binding Label}"
                                                        FontWeight="Bold"
-                                                       FontSize="11"
+                                                       FontSize="12"
                                                        Foreground="#FFFFFF"
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Center"
-                                                       Visibility="{Binding IconSource32, Converter={StaticResource NullToVis}}"/>
+                                                       Visibility="{Binding IconSource, Converter={StaticResource NullToVis}}"/>
                                         </Grid>
                                     </Border>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -234,11 +195,12 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
                     <!-- Header -->
-                    <Grid Margin="0,0,0,14">
+                    <Grid Margin="0,0,0,12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
@@ -249,8 +211,68 @@
                         </Border>
                     </Grid>
 
+                    <!-- Dedicated Live Previews Section -->
+                    <Border Grid.Row="1" Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,14">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="LIVE PREVIEWS" FontSize="11" FontWeight="Bold" Foreground="#60A5FA"/>
+                                    <TextBlock Text="Real-time multi-resolution icon generation previews" FontSize="11" Foreground="#94A3B8" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <ui:Button Name="BtnRegenerateCurrent" Grid.Column="1" Content="Generate This Icon"
+                                           Icon="{ui:SymbolIcon ArrowClockwise16}"
+                                           Appearance="Secondary" Padding="10,4" FontSize="12"
+                                           Click="BtnRegenerateCurrent_Click"/>
+                            </Grid>
+
+                            <Border Background="#08FFFFFF" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="6" Padding="10">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                    <StackPanel Margin="0,0,24,0" HorizontalAlignment="Center">
+                                        <TextBlock Text="512x512" Foreground="#94A3B8" FontSize="11" Margin="0,0,0,6" HorizontalAlignment="Center"/>
+                                        <Border Width="80" Height="80" Background="Transparent" CornerRadius="8" ClipToBounds="True">
+                                            <Image Source="{Binding SelectedItem.IconSource, ElementName=LstApps}" Stretch="Uniform"
+                                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                                   RenderOptions.EdgeMode="Unspecified"/>
+                                        </Border>
+                                    </StackPanel>
+
+                                    <StackPanel VerticalAlignment="Bottom" Margin="0,0,20,0" HorizontalAlignment="Center">
+                                        <TextBlock Text="48x48" Foreground="#94A3B8" FontSize="11" Margin="0,0,0,6" HorizontalAlignment="Center"/>
+                                        <Border Width="48" Height="48" Background="Transparent" CornerRadius="6" ClipToBounds="True">
+                                            <Image Source="{Binding SelectedItem.IconSource48, ElementName=LstApps}" Stretch="Uniform"
+                                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                                   RenderOptions.EdgeMode="Unspecified"/>
+                                        </Border>
+                                    </StackPanel>
+
+                                    <StackPanel VerticalAlignment="Bottom" Margin="0,0,20,0" HorizontalAlignment="Center">
+                                        <TextBlock Text="32x32" Foreground="#94A3B8" FontSize="11" Margin="0,0,0,6" HorizontalAlignment="Center"/>
+                                        <Border Width="32" Height="32" Background="Transparent" CornerRadius="4" ClipToBounds="True">
+                                            <Image Source="{Binding SelectedItem.IconSource32, ElementName=LstApps}" Stretch="Uniform"
+                                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                                   RenderOptions.EdgeMode="Unspecified"/>
+                                        </Border>
+                                    </StackPanel>
+
+                                    <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Center">
+                                        <TextBlock Text="16x16" Foreground="#94A3B8" FontSize="11" Margin="0,0,0,6" HorizontalAlignment="Center"/>
+                                        <Border Width="16" Height="16" Background="Transparent" CornerRadius="3" ClipToBounds="True">
+                                            <Image Source="{Binding SelectedItem.IconSource16, ElementName=LstApps}" Stretch="Uniform"
+                                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                                   RenderOptions.EdgeMode="Unspecified"/>
+                                        </Border>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Category Tabs -->
-                    <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0">
+                    <TabControl Grid.Row="2" Background="Transparent" BorderThickness="0">
                         <!-- Tab 1: Launch Configuration -->
                         <TabItem>
                             <TabItem.Header>
@@ -372,7 +394,7 @@
                                                         </Grid.ColumnDefinitions>
                                                         <ui:TextBox Name="TxtColor" PlaceholderText="#1E88E4"
                                                                     TextChanged="Config_TextChanged" Margin="0,0,4,0"/>
-                                                        <Border Name="ColorPreviewBorder" Grid.Column="1" Width="24" Height="24" CornerRadius="4" Background="#1E88E4" BorderBrush="#40FFFFFF" BorderThickness="1" VerticalAlignment="Center"/>
+                                                        <Border Name="ColorPreviewBorder" Grid.Column="1" Width="26" Height="26" CornerRadius="4" Background="#1E88E4" BorderBrush="#50FFFFFF" BorderThickness="1" VerticalAlignment="Center" Cursor="Hand" ToolTip="Click to open Color Wheel Picker" MouseLeftButtonUp="BtnPickColor_Click"/>
                                                     </Grid>
                                                 </StackPanel>
 
@@ -386,7 +408,7 @@
                                                         </Grid.ColumnDefinitions>
                                                         <ui:TextBox Name="TxtSecondaryColor" PlaceholderText="#DD2476"
                                                                     TextChanged="Config_TextChanged" Margin="0,0,4,0"/>
-                                                        <Border Name="SecondaryColorPreviewBorder" Grid.Column="1" Width="24" Height="24" CornerRadius="4" Background="#DD2476" BorderBrush="#40FFFFFF" BorderThickness="1" VerticalAlignment="Center"/>
+                                                        <Border Name="SecondaryColorPreviewBorder" Grid.Column="1" Width="26" Height="26" CornerRadius="4" Background="#DD2476" BorderBrush="#50FFFFFF" BorderThickness="1" VerticalAlignment="Center" Cursor="Hand" ToolTip="Click to open Color Wheel Picker" MouseLeftButtonUp="BtnPickSecondaryColor_Click"/>
                                                     </Grid>
                                                 </StackPanel>
 
@@ -431,7 +453,7 @@
                                                         </Grid.ColumnDefinitions>
                                                         <ui:TextBox Name="TxtGlyphColor" PlaceholderText="#FFFFFF"
                                                                     TextChanged="Config_TextChanged" Margin="0,0,4,0"/>
-                                                        <Border Name="GlyphColorPreviewBorder" Grid.Column="1" Width="24" Height="24" CornerRadius="4" Background="#FFFFFF" BorderBrush="#40FFFFFF" BorderThickness="1" VerticalAlignment="Center"/>
+                                                        <Border Name="GlyphColorPreviewBorder" Grid.Column="1" Width="26" Height="26" CornerRadius="4" Background="#FFFFFF" BorderBrush="#50FFFFFF" BorderThickness="1" VerticalAlignment="Center" Cursor="Hand" ToolTip="Click to open Color Wheel Picker" MouseLeftButtonUp="BtnPickGlyphColor_Click"/>
                                                     </Grid>
                                                 </StackPanel>
 
@@ -493,14 +515,40 @@
                                             </Grid>
                                         </StackPanel>
                                     </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
 
+                        <!-- Tab 4: Developer -->
+                        <TabItem>
+                            <TabItem.Header>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="4,2">
+                                    <ui:SymbolIcon Symbol="Code20" Margin="0,0,6,0"/>
+                                    <TextBlock Text="Developer" FontWeight="SemiBold" FontSize="12"/>
+                                </StackPanel>
+                            </TabItem.Header>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,10,0,0">
+                                <StackPanel Margin="0,0,8,0">
                                     <!-- Project Favicon Card -->
-                                    <Border Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="12">
+                                    <Border Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="14">
                                         <StackPanel>
-                                            <TextBlock Text="PROJECT FAVICON" FontSize="11" FontWeight="Bold" Foreground="#60A5FA" Margin="0,0,0,10"/>
+                                            <Grid Margin="0,0,0,12">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock Text="PROJECT FAVICON" FontSize="11" FontWeight="Bold" Foreground="#60A5FA"/>
+                                                    <TextBlock Text="Sync app branding and icons into project web / source folders" FontSize="11" Foreground="#94A3B8" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                                <ui:Button Name="BtnUpdateCurrentFavicon" Grid.Column="1" Content="Update Favicon"
+                                                           Icon="{ui:SymbolIcon ArrowClockwise16}"
+                                                           Appearance="Secondary" Padding="10,4" FontSize="12"
+                                                           Click="BtnUpdateCurrentFavicon_Click"/>
+                                            </Grid>
 
-                                            <TextBlock Text="Project Favicon Path (Optional - for web / project branding)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
-                                            <Grid>
+                                            <TextBlock Text="Project Favicon Path (Optional - .ico, .png, or .svg)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
+                                            <Grid Margin="0,0,0,8">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
@@ -511,78 +559,8 @@
                                                            Appearance="Secondary" Padding="8,4"
                                                            Click="BtnBrowseFavicon_Click"/>
                                             </Grid>
-                                        </StackPanel>
-                                    </Border>
-                                </StackPanel>
-                            </ScrollViewer>
-                        </TabItem>
-
-                        <!-- Tab 4: Live Previews -->
-                        <TabItem>
-                            <TabItem.Header>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="4,2">
-                                    <ui:SymbolIcon Symbol="Eye20" Margin="0,0,6,0"/>
-                                    <TextBlock Text="Live Previews" FontWeight="SemiBold" FontSize="12"/>
-                                </StackPanel>
-                            </TabItem.Header>
-                            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,10,0,0">
-                                <StackPanel Margin="0,0,8,0">
-                                    <Border Background="#0CFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1" CornerRadius="6" Padding="14">
-                                        <StackPanel>
-                                            <Grid Margin="0,0,0,14">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel VerticalAlignment="Center">
-                                                    <TextBlock Text="ICON PREVIEWS" FontSize="11" FontWeight="Bold" Foreground="#60A5FA"/>
-                                                    <TextBlock Text="Real-time multi-resolution icon generation previews" FontSize="11" Foreground="#94A3B8" Margin="0,2,0,0"/>
-                                                </StackPanel>
-                                                <ui:Button Name="BtnRegenerateCurrent" Grid.Column="1" Content="Generate This Icon"
-                                                           Icon="{ui:SymbolIcon ArrowClockwise16}"
-                                                           Appearance="Secondary" Padding="10,4" FontSize="12"
-                                                           Click="BtnRegenerateCurrent_Click"/>
-                                            </Grid>
-
-                                            <Border Background="#08FFFFFF" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="6" Padding="14">
-                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                                                    <StackPanel Margin="0,0,24,0" HorizontalAlignment="Center">
-                                                        <TextBlock Text="512x512" Foreground="#94A3B8" FontSize="11" Margin="0,0,0,6" HorizontalAlignment="Center"/>
-                                                        <Border Width="110" Height="110" Background="#20FFFFFF" CornerRadius="8" ClipToBounds="True">
-                                                            <Image Source="{Binding SelectedItem.IconSource, ElementName=LstApps}" Stretch="Uniform"
-                                                                   RenderOptions.BitmapScalingMode="HighQuality"
-                                                                   RenderOptions.EdgeMode="Unspecified"/>
-                                                        </Border>
-                                                    </StackPanel>
-
-                                                    <StackPanel VerticalAlignment="Bottom" Margin="0,0,20,0" HorizontalAlignment="Center">
-                                                        <TextBlock Text="48x48" Foreground="#94A3B8" FontSize="11" Margin="0,0,0,6" HorizontalAlignment="Center"/>
-                                                        <Border Width="48" Height="48" Background="#20FFFFFF" CornerRadius="6" ClipToBounds="True">
-                                                            <Image Source="{Binding SelectedItem.IconSource48, ElementName=LstApps}" Stretch="Uniform"
-                                                                   RenderOptions.BitmapScalingMode="HighQuality"
-                                                                   RenderOptions.EdgeMode="Unspecified"/>
-                                                        </Border>
-                                                    </StackPanel>
-
-                                                    <StackPanel VerticalAlignment="Bottom" Margin="0,0,20,0" HorizontalAlignment="Center">
-                                                        <TextBlock Text="32x32" Foreground="#94A3B8" FontSize="11" Margin="0,0,0,6" HorizontalAlignment="Center"/>
-                                                        <Border Width="32" Height="32" Background="#20FFFFFF" CornerRadius="4" ClipToBounds="True">
-                                                            <Image Source="{Binding SelectedItem.IconSource32, ElementName=LstApps}" Stretch="Uniform"
-                                                                   RenderOptions.BitmapScalingMode="HighQuality"
-                                                                   RenderOptions.EdgeMode="Unspecified"/>
-                                                        </Border>
-                                                    </StackPanel>
-
-                                                    <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Center">
-                                                        <TextBlock Text="16x16" Foreground="#94A3B8" FontSize="11" Margin="0,0,0,6" HorizontalAlignment="Center"/>
-                                                        <Border Width="16" Height="16" Background="#20FFFFFF" CornerRadius="3" ClipToBounds="True">
-                                                            <Image Source="{Binding SelectedItem.IconSource16, ElementName=LstApps}" Stretch="Uniform"
-                                                                   RenderOptions.BitmapScalingMode="HighQuality"
-                                                                   RenderOptions.EdgeMode="Unspecified"/>
-                                                        </Border>
-                                                    </StackPanel>
-                                                </StackPanel>
-                                            </Border>
+                                            <TextBlock Text="Copies generated favicon (.ico, .png, or .svg) to this app's project and updates &lt;ApplicationIcon&gt; in .csproj files."
+                                                       Foreground="#64748B" FontSize="11" TextWrapping="Wrap"/>
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>

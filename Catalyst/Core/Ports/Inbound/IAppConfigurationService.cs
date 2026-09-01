@@ -18,4 +18,8 @@ public interface IAppConfigurationService
     string? GetCustomConfigPath();
     void SetConfigPathPreference(string? path);
     string? GetConfigPathPreference();
+    void SetCustomIconsDir(string? path);
+    string? GetCustomIconsDir();
+    void SetIconsDirPreference(string? path);
+    string? GetIconsDirPreference();
 }

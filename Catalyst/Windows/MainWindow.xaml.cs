@@ -41,15 +41,34 @@ public partial class MainWindow : FluentWindow
     public MainWindowViewModel ViewModel => _viewModel;
 
     public MainWindow() : this(
-        App.Services != null ? App.Services.GetRequiredService<MainWindowViewModel>() : new MainWindowViewModel(
-            new Core.Services.AppConfigurationService(new Adapters.Persistence.YamlConfigRepository(), new Adapters.Persistence.JsonSettingsStorage(), new Adapters.Persistence.PathResolver(new Adapters.Persistence.JsonSettingsStorage())),
-            new Core.Services.AppLauncherService(new Adapters.Processes.WindowsProcessExecutor(), new Core.Services.AppConfigurationService(new Adapters.Persistence.YamlConfigRepository(), new Adapters.Persistence.JsonSettingsStorage(), new Adapters.Persistence.PathResolver(new Adapters.Persistence.JsonSettingsStorage()))),
-            new Core.Services.HotkeyService(new Adapters.Platform.WindowsHotkeyHook()),
-            new WindowService(App.Services!, new Adapters.Platform.WindowPlacementService())),
+        CreateDefaultViewModel(),
         App.Services != null ? App.Services.GetRequiredService<IHotkeyService>() : new Core.Services.HotkeyService(new Adapters.Platform.WindowsHotkeyHook()),
         App.Services != null ? App.Services.GetRequiredService<IWindowService>() : new WindowService(App.Services!, new Adapters.Platform.WindowPlacementService()),
         App.Services != null ? App.Services.GetRequiredService<IAppLauncherService>() : new Core.Services.AppLauncherService(new Adapters.Processes.WindowsProcessExecutor(), new Core.Services.AppConfigurationService(new Adapters.Persistence.YamlConfigRepository(), new Adapters.Persistence.JsonSettingsStorage(), new Adapters.Persistence.PathResolver(new Adapters.Persistence.JsonSettingsStorage()))))
     {
+    }
+
+    private static MainWindowViewModel CreateDefaultViewModel()
+    {
+        if (App.Services != null)
+        {
+            return App.Services.GetRequiredService<MainWindowViewModel>();
+        }
+
+        var settings = new Adapters.Persistence.JsonSettingsStorage();
+        var resolver = new Adapters.Persistence.PathResolver(settings);
+        var repo = new Adapters.Persistence.YamlConfigRepository();
+        var configService = new Core.Services.AppConfigurationService(repo, settings, resolver);
+        var processExec = new Adapters.Processes.WindowsProcessExecutor();
+        var launcherService = new Core.Services.AppLauncherService(processExec, configService);
+        var hotkeyHook = new Adapters.Platform.WindowsHotkeyHook();
+        var hotkeyService = new Core.Services.HotkeyService(hotkeyHook);
+        var windowPlacement = new Adapters.Platform.WindowPlacementService();
+        var windowService = new WindowService(App.Services!, windowPlacement);
+        var renderer = new Adapters.Icons.SkiaIconRenderer();
+        var iconService = new Core.Services.IconManagementService(renderer, configService);
+
+        return new MainWindowViewModel(configService, launcherService, hotkeyService, windowService, iconService);
     }
 
     public MainWindow(
@@ -108,6 +127,7 @@ public partial class MainWindow : FluentWindow
         var contextMenu = new System.Windows.Forms.ContextMenuStrip();
         contextMenu.Items.Add("Show Catalyst", null, (s, e) => Dispatcher.Invoke(RestoreWindow));
         contextMenu.Items.Add("Manage Apps", null, (s, e) => Dispatcher.Invoke(() => _viewModel.OpenAppManagement(this)));
+        contextMenu.Items.Add("Settings", null, (s, e) => Dispatcher.Invoke(OpenSettings));
         contextMenu.Items.Add("-");
         contextMenu.Items.Add("Start All Visible", null, (s, e) => Dispatcher.Invoke(async () => await _viewModel.StartAllAsync()));
         contextMenu.Items.Add("Stop All", null, (s, e) => Dispatcher.Invoke(async () => await _viewModel.StopAllAsync()));
@@ -287,6 +307,13 @@ public partial class MainWindow : FluentWindow
         if (e.Key == Key.M && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
         {
             _viewModel.OpenAppManagement(this);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.OemComma && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            OpenSettings();
             e.Handled = true;
             return;
         }
@@ -587,6 +614,24 @@ public partial class MainWindow : FluentWindow
     private void BtnManage_Click(object sender, RoutedEventArgs e)
     {
         _viewModel.OpenAppManagement(this);
+    }
+
+    private void BtnSettings_Click(object sender, RoutedEventArgs e)
+    {
+        OpenSettings();
+    }
+
+    public void OpenSettings()
+    {
+        _viewModel.OpenSettings(this);
+        ReRegisterHotkey();
+    }
+
+    public void ReRegisterHotkey()
+    {
+        _hotkeyService.UnregisterHotkey();
+        SetupHotkey();
+        LblHotkeyHint.Text = $" • Hotkey: {_viewModel.ConfiguredHotkey}";
     }
 
     private void BtnStartAll_Click(object sender, RoutedEventArgs e)

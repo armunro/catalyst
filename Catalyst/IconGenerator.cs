@@ -65,6 +65,18 @@ public class IconGenerator
             logger?.Invoke($"FAILED to save main icon for {app.Name}: {ex.Message}");
         }
 
+        // Save SVG icon
+        string svgOutputPath = Path.Combine(appDir, $"{app.Name}.svg");
+        try
+        {
+            renderer.SaveSvg(app, svgOutputPath, 512, iconsBaseDir, rootDir, logger);
+            logger?.Invoke($"Generated SVG icon for {app.Name} at {svgOutputPath}");
+        }
+        catch (Exception ex)
+        {
+            logger?.Invoke($"FAILED to save SVG icon for {app.Name}: {ex.Message}");
+        }
+
         // Generate Favicons and ICO rendered directly at each target resolution
         int[] faviconSizes = { 16, 32, 48 };
         var iconImages = new List<byte[]>();
@@ -81,7 +93,7 @@ public class IconGenerator
                 using var image = SKImage.FromBitmap(sizeBitmap);
                 using var data = image.Encode(SKEncodedImageFormat.Png, 100);
 
-                using (var stream = File.Open(faviconPngPath, FileMode.Create, FileAccess.Write))
+                using (var stream = new FileStream(faviconPngPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
                 {
                     data.SaveTo(stream);
                 }
@@ -120,6 +132,16 @@ public class IconGenerator
     public SKBitmap RenderIconBitmap(AppInfo app, int size, string iconsBaseDir, string? rootDir = null, Action<string>? logger = null)
     {
         return GetRenderer().RenderIconBitmap(app, size, iconsBaseDir, rootDir, logger);
+    }
+
+    public string RenderIconSvg(AppInfo app, int size, string iconsBaseDir, string? rootDir = null, Action<string>? logger = null)
+    {
+        return GetRenderer().RenderIconSvg(app, size, iconsBaseDir, rootDir, logger);
+    }
+
+    public void SaveSvg(AppInfo app, string outputPath, int size, string iconsBaseDir, string? rootDir = null, Action<string>? logger = null)
+    {
+        GetRenderer().SaveSvg(app, outputPath, size, iconsBaseDir, rootDir, logger);
     }
 
     public static BitmapSource ToBitmapSource(SKBitmap bitmap)

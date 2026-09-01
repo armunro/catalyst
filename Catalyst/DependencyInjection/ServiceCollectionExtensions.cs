@@ -36,10 +36,12 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IWindowService, WindowService>();
         services.AddTransient<MainWindowViewModel>();
         services.AddTransient<AppManagementViewModel>();
+        services.AddTransient<SettingsViewModel>();
 
         // Views
         services.AddTransient<MainWindow>();
         services.AddTransient<AppManagementWindow>();
+        services.AddTransient<SettingsWindow>();
 
         return services;
     }
