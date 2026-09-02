@@ -1,0 +1,21 @@
+name: Catalyst
+hidden: true
+catalystDirectory: .
+launch:
+  projectPath: Catalyst.csproj
+  executablePath: ''
+  arguments: ''
+  workingDirectory: ''
+  runAsAdmin: false
+icon:
+  color: '#123'
+  secondaryColor: '#234'
+  backgroundType: Gradient
+  gradientDirection: Diagonal
+  label: ''
+  iconPath: ''
+  faviconPath: favicon.ico
+  bootstrapIcon: box-fill
+  customGlyphSvg: assets/atom.svg
+  customGlyphColor: '#EAD500'
+  svgOverride: ''
