@@ -204,6 +204,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
 
     public void OpenLogViewer(AppInfo app, System.Windows.Window? owner = null)
     {
+        if (app == null || !app.CanViewLogs) return;
         _windowService.ShowLogViewer(app, owner);
     }
 

@@ -137,7 +137,7 @@ public class IconManagementService : IIconManagementService
 
         string rootDir = _configurationService.RootDir;
         string iconsBaseDir = _configurationService.IconsBaseDir;
-        string? projectDir = AppConfigurationService.GetProjectDirectory(app.ProjectPath, app.WorkingDirectory, rootDir);
+        string? projectDir = AppConfigurationService.GetProjectDirectory(app.ProjectPath, app.WorkingDirectory, rootDir, app.ExecutablePath);
 
         string fullFaviconPath = Path.IsPathRooted(app.FaviconPath)
             ? app.FaviconPath
@@ -238,7 +238,7 @@ public class IconManagementService : IIconManagementService
     {
         string rootDir = _configurationService.RootDir;
         string iconsBaseDir = _configurationService.IconsBaseDir;
-        string? projectDir = AppConfigurationService.GetProjectDirectory(app.ProjectPath, app.WorkingDirectory, rootDir);
+        string? projectDir = AppConfigurationService.GetProjectDirectory(app.ProjectPath, app.WorkingDirectory, rootDir, app.ExecutablePath);
 
         // Determine destination directory
         string destDir;
@@ -376,7 +376,7 @@ public class IconManagementService : IIconManagementService
         if (!string.IsNullOrEmpty(relProjectPath))
         {
             string fullProj = Path.IsPathRooted(relProjectPath) ? relProjectPath : Path.GetFullPath(Path.Combine(rootDir, relProjectPath));
-            if (fullProj.StartsWith(exportProjectDir, StringComparison.OrdinalIgnoreCase))
+            if (AppConfigurationService.IsSubPathOf(fullProj, exportProjectDir))
             {
                 relProjectPath = Path.GetRelativePath(exportProjectDir, fullProj);
             }
@@ -386,7 +386,7 @@ public class IconManagementService : IIconManagementService
         if (!string.IsNullOrEmpty(relExecPath) && !relExecPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && !relExecPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             string fullExec = Path.IsPathRooted(relExecPath) ? relExecPath : Path.GetFullPath(Path.Combine(rootDir, relExecPath));
-            if (fullExec.StartsWith(exportProjectDir, StringComparison.OrdinalIgnoreCase))
+            if (AppConfigurationService.IsSubPathOf(fullExec, exportProjectDir))
             {
                 relExecPath = Path.GetRelativePath(exportProjectDir, fullExec);
             }
@@ -396,7 +396,7 @@ public class IconManagementService : IIconManagementService
         if (!string.IsNullOrEmpty(relWorkDir))
         {
             string fullWork = Path.IsPathRooted(relWorkDir) ? relWorkDir : Path.GetFullPath(Path.Combine(rootDir, relWorkDir));
-            if (fullWork.StartsWith(exportProjectDir, StringComparison.OrdinalIgnoreCase))
+            if (AppConfigurationService.IsSubPathOf(fullWork, exportProjectDir))
             {
                 relWorkDir = Path.GetRelativePath(exportProjectDir, fullWork);
             }
@@ -406,7 +406,7 @@ public class IconManagementService : IIconManagementService
         if (!string.IsNullOrEmpty(relFaviconPath))
         {
             string fullFav = Path.IsPathRooted(relFaviconPath) ? relFaviconPath : Path.GetFullPath(Path.Combine(!string.IsNullOrEmpty(projectDir) ? projectDir : rootDir, relFaviconPath));
-            if (fullFav.StartsWith(exportProjectDir, StringComparison.OrdinalIgnoreCase))
+            if (AppConfigurationService.IsSubPathOf(fullFav, exportProjectDir))
             {
                 relFaviconPath = Path.GetRelativePath(exportProjectDir, fullFav);
             }
@@ -451,11 +451,11 @@ public class IconManagementService : IIconManagementService
         // Update app's CatalystDirectory property if not already set
         if (string.IsNullOrWhiteSpace(app.CatalystDirectory))
         {
-            if (!string.IsNullOrEmpty(projectDir) && destDir.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(projectDir) && AppConfigurationService.IsSubPathOf(destDir, projectDir))
             {
                 app.CatalystDirectory = Path.GetRelativePath(projectDir, destDir);
             }
-            else if (destDir.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
+            else if (AppConfigurationService.IsSubPathOf(destDir, rootDir))
             {
                 app.CatalystDirectory = Path.GetRelativePath(rootDir, destDir);
             }

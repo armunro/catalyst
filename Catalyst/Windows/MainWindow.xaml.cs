@@ -199,7 +199,7 @@ public partial class MainWindow : FluentWindow
         _notifyIcon?.Dispose();
     }
 
-    private void RestoreWindow()
+    public void RestoreWindow()
     {
         this.Show();
         this.ShowInTaskbar = true;
@@ -327,7 +327,7 @@ public partial class MainWindow : FluentWindow
 
         if (e.Key == Key.L && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
         {
-            if (LstApps.SelectedItem is AppInfo selectedApp)
+            if (LstApps.SelectedItem is AppInfo selectedApp && selectedApp.CanViewLogs)
             {
                 _viewModel.OpenLogViewer(selectedApp, this);
                 e.Handled = true;
@@ -402,7 +402,7 @@ public partial class MainWindow : FluentWindow
     {
         if (LstApps.SelectedItem is AppInfo app)
         {
-            if (app.IsRunning)
+            if (app.IsRunning && app.CanViewLogs)
             {
                 _viewModel.OpenLogViewer(app, this);
             }
@@ -437,7 +437,7 @@ public partial class MainWindow : FluentWindow
 
     private void BtnItemLogs_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is System.Windows.FrameworkElement elem && elem.Tag is AppInfo app)
+        if (sender is System.Windows.FrameworkElement elem && elem.Tag is AppInfo app && app.CanViewLogs)
         {
             _viewModel.OpenLogViewer(app, this);
         }
@@ -461,7 +461,7 @@ public partial class MainWindow : FluentWindow
 
     private void CtxMenuLogs_Click(object sender, RoutedEventArgs e)
     {
-        if (LstApps.SelectedItem is AppInfo app)
+        if (LstApps.SelectedItem is AppInfo app && app.CanViewLogs)
         {
             _viewModel.OpenLogViewer(app, this);
         }

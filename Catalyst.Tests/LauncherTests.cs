@@ -48,6 +48,9 @@ public class LauncherTests
         Assert.False(appUrl.IsDotnetProject);
         Assert.True(appUrl.IsUrl);
         Assert.True(appUrl.IsLaunchable);
+        Assert.False(appUrl.CanMonitorProcess);
+        Assert.False(appUrl.CanViewLogs);
+        Assert.False(appUrl.IsRunning);
         Assert.Equal("Web URL", appUrl.LaunchTypeDescription);
 
         var appScript = new AppInfo
@@ -2727,6 +2730,400 @@ apps:
         {
             try { Directory.Delete(tempDir, true); } catch { }
         }
+    }
+
+    [Fact]
+    public void Paths_DefaultRelativeToLaunchTargetDirectory_WhenLaunchIsExecutable()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "ExecRelativePathsTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            // Create root files to make sure they do not hijack the relative paths
+            File.WriteAllText(Path.Combine(tempDir, "favicon.ico"), "root-favicon");
+            Directory.CreateDirectory(Path.Combine(tempDir, ".catalyst"));
+            Directory.CreateDirectory(Path.Combine(tempDir, "icons"));
+            File.WriteAllText(Path.Combine(tempDir, "icons", "glyph.svg"), "<svg>root</svg>");
+
+            string targetDir = Path.Combine(tempDir, "MyExeApp");
+            Directory.CreateDirectory(targetDir);
+            string exePath = Path.Combine(targetDir, "MyExeApp.exe");
+            File.WriteAllText(exePath, "fake-exe");
+
+            var configRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var settings = new Catalyst.Adapters.Persistence.JsonSettingsStorage(Path.Combine(tempDir, "settings.json"));
+            var pathResolver = new Catalyst.Adapters.Persistence.PathResolver(settings);
+            string configPath = Path.Combine(tempDir, "apps.yaml");
+            pathResolver.CustomConfigPath = configPath;
+            var configService = new Catalyst.Core.Services.AppConfigurationService(configRepo, settings, pathResolver);
+
+            var entry = new AppConfigEntry
+            {
+                Name = "MyExeApp",
+                Launch = new LaunchConfig
+                {
+                    ExecutablePath = exePath
+                },
+                Icon = new IconConfig
+                {
+                    FaviconPath = "favicon.ico",
+                    CustomGlyphSvg = @"icons\glyph.svg",
+                    SvgOverride = @"icons\override.svg"
+                },
+                CatalystDirectory = ".catalyst"
+            };
+
+            var appInfo = configService.ConvertToAppInfo(entry, tempDir, Path.Combine(tempDir, "global-icons"));
+
+            // All relative paths must be resolved relative to targetDir (launch target directory), not tempDir (apps.yaml)
+            Assert.Equal(Path.Combine(targetDir, "favicon.ico"), appInfo.FaviconPath);
+            Assert.Equal(Path.Combine(targetDir, ".catalyst"), appInfo.CatalystDirectory);
+            Assert.Equal(Path.Combine(targetDir, "icons", "glyph.svg"), appInfo.CustomGlyphSvg);
+            Assert.Equal(Path.Combine(targetDir, "icons", "override.svg"), appInfo.SvgOverride);
+
+            // Converting back to config entry should serialize them relative to targetDir
+            var reserialized = configService.ConvertToConfigEntry(appInfo, tempDir);
+            Assert.Equal("favicon.ico", reserialized.Icon.FaviconPath.Replace('/', '\\'));
+            Assert.Equal(".catalyst", reserialized.CatalystDirectory);
+            Assert.Equal(@"icons\glyph.svg", reserialized.Icon.CustomGlyphSvg.Replace('/', '\\'));
+            Assert.Equal(@"icons\override.svg", reserialized.Icon.SvgOverride.Replace('/', '\\'));
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void Paths_FallbackToRootDir_WhenNoLaunchTargetSpecified()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "NoTargetPathsTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var configRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var settings = new Catalyst.Adapters.Persistence.JsonSettingsStorage(Path.Combine(tempDir, "settings.json"));
+            var pathResolver = new Catalyst.Adapters.Persistence.PathResolver(settings);
+            var configService = new Catalyst.Core.Services.AppConfigurationService(configRepo, settings, pathResolver);
+
+            var entry = new AppConfigEntry
+            {
+                Name = "NoTargetApp",
+                Icon = new IconConfig
+                {
+                    FaviconPath = "favicon.ico",
+                    CustomGlyphSvg = @"icons\glyph.svg",
+                    SvgOverride = @"icons\override.svg"
+                },
+                CatalystDirectory = ".catalyst"
+            };
+
+            var appInfo = configService.ConvertToAppInfo(entry, tempDir, Path.Combine(tempDir, "global-icons"));
+
+            // When no launch target is configured, relative paths fall back to rootDir (apps.yaml directory)
+            Assert.Equal(Path.Combine(tempDir, "favicon.ico"), appInfo.FaviconPath);
+            Assert.Equal(Path.Combine(tempDir, ".catalyst"), appInfo.CatalystDirectory);
+            Assert.Equal(Path.Combine(tempDir, "icons", "glyph.svg"), appInfo.CustomGlyphSvg);
+            Assert.Equal(Path.Combine(tempDir, "icons", "override.svg"), appInfo.SvgOverride);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void SkiaIconRenderer_LoadsSvgRelativeToExecutableDirectory_WhenOnlyExecutableIsSet()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "SkiaExeSvgTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            string appDir = Path.Combine(tempDir, "ExeAppDir");
+            Directory.CreateDirectory(appDir);
+            string exePath = Path.Combine(appDir, "MyApp.exe");
+            File.WriteAllText(exePath, "dummy-binary");
+
+            string iconsDir = Path.Combine(appDir, "icons");
+            Directory.CreateDirectory(iconsDir);
+            string customGlyphPath = Path.Combine(iconsDir, "glyph.svg");
+            File.WriteAllText(customGlyphPath, "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"white\"/></svg>");
+
+            var iconRenderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+
+            var app = new AppInfo
+            {
+                Name = "ExeApp",
+                Color = "#222222",
+                ExecutablePath = exePath,
+                CustomGlyphSvg = @"icons\glyph.svg" // Relative to exe target directory
+            };
+
+            using var bmp = iconRenderer.RenderIconBitmap(app, 64, Path.Combine(tempDir, "global-icons"), tempDir);
+            Assert.NotNull(bmp);
+            Assert.Equal(64, bmp.Width);
+            Assert.Equal(64, bmp.Height);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void Paths_DefaultRelativeToLaunchTargetDirectory_WhenLaunchIsWorkingDirectory()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "WorkDirRelativePathsTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            string workDir = Path.Combine(tempDir, "TargetWorkDir");
+            Directory.CreateDirectory(workDir);
+
+            var configRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+            var settings = new Catalyst.Adapters.Persistence.JsonSettingsStorage(Path.Combine(tempDir, "settings.json"));
+            var pathResolver = new Catalyst.Adapters.Persistence.PathResolver(settings);
+            var configService = new Catalyst.Core.Services.AppConfigurationService(configRepo, settings, pathResolver);
+
+            var entry = new AppConfigEntry
+            {
+                Name = "WorkDirApp",
+                Launch = new LaunchConfig
+                {
+                    WorkingDirectory = workDir
+                },
+                Icon = new IconConfig
+                {
+                    FaviconPath = "favicon.ico",
+                    CustomGlyphSvg = @"assets\glyph.svg"
+                },
+                CatalystDirectory = ".catalyst"
+            };
+
+            var appInfo = configService.ConvertToAppInfo(entry, tempDir, Path.Combine(tempDir, "global-icons"));
+
+            Assert.Equal(Path.Combine(workDir, "favicon.ico"), appInfo.FaviconPath);
+            Assert.Equal(Path.Combine(workDir, ".catalyst"), appInfo.CatalystDirectory);
+            Assert.Equal(Path.Combine(workDir, "assets", "glyph.svg"), appInfo.CustomGlyphSvg);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void AppConfigurationService_ResolveExpectedFullPath_CorrectlyCalculatesPaths()
+    {
+        string rootDir = @"C:\Catalyst";
+        string projectDir = @"C:\Projects\FlightPlan";
+
+        // 1. Relative path with projectDir (relative to launch target)
+        string resolvedProjectRelative = Catalyst.Core.Services.AppConfigurationService.ResolveExpectedFullPath(@"icons\glyph.svg", projectDir, rootDir);
+        Assert.Equal(Path.GetFullPath(Path.Combine(projectDir, @"icons\glyph.svg")), resolvedProjectRelative);
+
+        // 2. Relative path without projectDir (falls back to rootDir)
+        string resolvedRootRelative = Catalyst.Core.Services.AppConfigurationService.ResolveExpectedFullPath(@"icons\glyph.svg", null, rootDir);
+        Assert.Equal(Path.GetFullPath(Path.Combine(rootDir, @"icons\glyph.svg")), resolvedRootRelative);
+
+        // 3. Full absolute path remains unchanged
+        string absolutePath = @"D:\Assets\Icons\app.svg";
+        string resolvedAbsolute = Catalyst.Core.Services.AppConfigurationService.ResolveExpectedFullPath(absolutePath, projectDir, rootDir);
+        Assert.Equal(Path.GetFullPath(absolutePath), resolvedAbsolute);
+
+        // 4. Default fallback when empty string provided
+        string resolvedCatDefault = Catalyst.Core.Services.AppConfigurationService.ResolveExpectedFullPath("", projectDir, rootDir, ".catalyst");
+        Assert.Equal(Path.GetFullPath(Path.Combine(projectDir, ".catalyst")), resolvedCatDefault);
+
+        string resolvedFavDefault = Catalyst.Core.Services.AppConfigurationService.ResolveExpectedFullPath(null, projectDir, rootDir, "favicon.ico");
+        Assert.Equal(Path.GetFullPath(Path.Combine(projectDir, "favicon.ico")), resolvedFavDefault);
+
+        // 5. Empty path without default fallback returns empty string
+        string resolvedEmpty = Catalyst.Core.Services.AppConfigurationService.ResolveExpectedFullPath("", projectDir, rootDir);
+        Assert.Equal(string.Empty, resolvedEmpty);
+
+        // 6. Inline SVG XML is preserved
+        string inlineSvg = "<svg><circle cx=\"10\" cy=\"10\" r=\"5\"/></svg>";
+        string resolvedInline = Catalyst.Core.Services.AppConfigurationService.ResolveExpectedFullPath(inlineSvg, projectDir, rootDir);
+        Assert.Equal(inlineSvg, resolvedInline);
+
+        // 7. URLs are preserved
+        string url = "https://github.com/armunro/catalyst";
+        string resolvedUrl = Catalyst.Core.Services.AppConfigurationService.ResolveExpectedFullPath(url, projectDir, rootDir);
+        Assert.Equal(url, resolvedUrl);
+    }
+
+    [Fact]
+    public void SingleInstanceManager_FirstInstanceAcquires_SecondInstanceFailsAndSignalsFirstInstance()
+    {
+        string uniqueId = Guid.NewGuid().ToString("N");
+        string mutexName = $"Test_Mutex_{uniqueId}";
+        string eventName = $"Test_Event_{uniqueId}";
+
+        var signalReceived = new System.Threading.ManualResetEventSlim(false);
+
+        using var firstManager = new Catalyst.Adapters.Platform.SingleInstanceManager(mutexName, eventName);
+        bool firstAcquired = firstManager.TryAcquireSingleInstance(() =>
+        {
+            signalReceived.Set();
+        });
+
+        Assert.True(firstAcquired);
+
+        using var secondManager = new Catalyst.Adapters.Platform.SingleInstanceManager(mutexName, eventName);
+        bool secondAcquired = secondManager.TryAcquireSingleInstance(() => { });
+
+        Assert.False(secondAcquired);
+
+        secondManager.NotifyExistingInstance();
+
+        bool signalHandled = signalReceived.Wait(TimeSpan.FromSeconds(5));
+        Assert.True(signalHandled);
+    }
+
+    [Fact]
+    public void SingleInstanceManager_DisposedFirstInstance_AllowsSubsequentInstanceToAcquire()
+    {
+        string uniqueId = Guid.NewGuid().ToString("N");
+        string mutexName = $"Test_Mutex_{uniqueId}";
+        string eventName = $"Test_Event_{uniqueId}";
+
+        var firstManager = new Catalyst.Adapters.Platform.SingleInstanceManager(mutexName, eventName);
+        bool firstAcquired = firstManager.TryAcquireSingleInstance(() => { });
+        Assert.True(firstAcquired);
+
+        firstManager.Dispose();
+
+        using var secondManager = new Catalyst.Adapters.Platform.SingleInstanceManager(mutexName, eventName);
+        bool secondAcquired = secondManager.TryAcquireSingleInstance(() => { });
+        Assert.True(secondAcquired);
+    }
+
+    [Fact]
+    public void WebUrlApp_PropertiesAndMonitoring_AreDisabled()
+    {
+        var app = new AppInfo
+        {
+            Name = "Web Dashboard",
+            ExecutablePath = "http://localhost:3000/dashboard"
+        };
+
+        Assert.True(app.IsUrl);
+        Assert.False(app.CanMonitorProcess);
+        Assert.False(app.CanViewLogs);
+        Assert.False(app.IsRunning);
+
+        // Even if Process property were set, IsRunning should stay false for URLs
+        app.Process = System.Diagnostics.Process.GetCurrentProcess();
+        Assert.False(app.IsRunning);
+    }
+
+    [Fact]
+    public void AppLauncherService_DetectRunningApps_SkipsWebUrls()
+    {
+        var procExec = new Catalyst.Adapters.Processes.WindowsProcessExecutor();
+        var configRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+        var settings = new Catalyst.Adapters.Persistence.JsonSettingsStorage();
+        var resolver = new Catalyst.Adapters.Persistence.PathResolver(settings);
+        var configService = new Catalyst.Core.Services.AppConfigurationService(configRepo, settings, resolver);
+        var launcher = new Catalyst.Core.Services.AppLauncherService(procExec, configService);
+
+        var currentProcessName = System.Diagnostics.Process.GetCurrentProcess().ProcessName;
+        var urlApp = new AppInfo
+        {
+            Name = "UrlAppMatchingProcessName",
+            ExecutablePath = $"https://example.com/{currentProcessName}"
+        };
+
+        launcher.DetectRunningApps(new[] { urlApp });
+        Assert.Null(urlApp.Process);
+        Assert.False(urlApp.IsRunning);
+    }
+
+    [Fact]
+    public void MainWindowViewModel_OpenLogViewer_DoesNotShowLogs_ForWebUrlApps()
+    {
+        bool logViewerShown = false;
+        var mockWindowService = new MockLogWindowService(() => logViewerShown = true);
+
+        var procExec = new Catalyst.Adapters.Processes.WindowsProcessExecutor();
+        var configRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+        var settings = new Catalyst.Adapters.Persistence.JsonSettingsStorage();
+        var resolver = new Catalyst.Adapters.Persistence.PathResolver(settings);
+        var configService = new Catalyst.Core.Services.AppConfigurationService(configRepo, settings, resolver);
+        var launcher = new Catalyst.Core.Services.AppLauncherService(procExec, configService);
+        var hotkeyHook = new Catalyst.Adapters.Platform.WindowsHotkeyHook();
+        var hotkeyService = new Catalyst.Core.Services.HotkeyService(hotkeyHook);
+
+        var vm = new Catalyst.Adapters.UI.ViewModels.MainWindowViewModel(configService, launcher, hotkeyService, mockWindowService);
+
+        var urlApp = new AppInfo
+        {
+            Name = "Web App",
+            ExecutablePath = "https://example.com"
+        };
+
+        vm.OpenLogViewer(urlApp);
+        Assert.False(logViewerShown);
+
+        var regularApp = new AppInfo
+        {
+            Name = "CLI App",
+            ExecutablePath = "app.exe"
+        };
+
+        vm.OpenLogViewer(regularApp);
+        Assert.True(logViewerShown);
+    }
+
+    [Fact]
+    public void BooleanToHiddenVisibilityConverter_ConvertsCorrectly()
+    {
+        var converter = new Catalyst.BooleanToHiddenVisibilityConverter();
+
+        Assert.Equal(System.Windows.Visibility.Visible, converter.Convert(true, typeof(System.Windows.Visibility), null!, System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(System.Windows.Visibility.Hidden, converter.Convert(false, typeof(System.Windows.Visibility), null!, System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(System.Windows.Visibility.Hidden, converter.Convert("invalid", typeof(System.Windows.Visibility), null!, System.Globalization.CultureInfo.InvariantCulture));
+
+        Assert.True((bool)converter.ConvertBack(System.Windows.Visibility.Visible, typeof(bool), null!, System.Globalization.CultureInfo.InvariantCulture));
+        Assert.False((bool)converter.ConvertBack(System.Windows.Visibility.Hidden, typeof(bool), null!, System.Globalization.CultureInfo.InvariantCulture));
+        Assert.False((bool)converter.ConvertBack(System.Windows.Visibility.Collapsed, typeof(bool), null!, System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
+    public void SharedTheme_ContainsForegroundBrush_ResolvingToForegroundColor()
+    {
+        var dict = new System.Windows.ResourceDictionary
+        {
+            Source = new Uri("pack://application:,,,/Catalyst;component/Themes/SharedTheme.xaml", UriKind.Absolute)
+        };
+
+        Assert.True(dict.Contains("ForegroundColor"));
+        Assert.True(dict.Contains("ForegroundBrush"));
+        var brush = dict["ForegroundBrush"] as SolidColorBrush;
+        Assert.NotNull(brush);
+        Assert.Equal(dict["ForegroundColor"], brush.Color);
+    }
+
+    private class MockLogWindowService : Catalyst.Adapters.UI.Navigation.IWindowService
+    {
+        private readonly Action _onShowLogViewer;
+
+        public MockLogWindowService(Action onShowLogViewer)
+        {
+            _onShowLogViewer = onShowLogViewer;
+        }
+
+        public void ShowMainWindow() { }
+        public void ShowAppManagement(System.Windows.Window? owner = null) { }
+        public void ShowSettings(System.Windows.Window? owner = null) { }
+        public void ShowLogViewer(AppInfo app, System.Windows.Window? owner = null) => _onShowLogViewer();
+        public void ShowIconsResult(string iconsPath, List<(string AppName, string IconPath)> generatedIcons, System.Windows.Window? owner = null) { }
+        public void PositionBottomRight(System.Windows.Window window) { }
     }
 
     private class MockWindowService : Catalyst.Adapters.UI.Navigation.IWindowService

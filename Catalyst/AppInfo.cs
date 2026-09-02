@@ -65,6 +65,11 @@ public class AppInfo : INotifyPropertyChanged
             OnPropertyChanged(nameof(ShortProjectPath)); 
             OnPropertyChanged(nameof(ShortLaunchTarget));
             OnPropertyChanged(nameof(LaunchTypeDescription));
+            OnPropertyChanged(nameof(IsDotnetProject));
+            OnPropertyChanged(nameof(IsUrl));
+            OnPropertyChanged(nameof(CanMonitorProcess));
+            OnPropertyChanged(nameof(CanViewLogs));
+            OnPropertyChanged(nameof(IsRunning));
         } 
     }
 
@@ -81,6 +86,11 @@ public class AppInfo : INotifyPropertyChanged
             OnPropertyChanged(nameof(ShortProjectPath));
             OnPropertyChanged(nameof(ShortLaunchTarget));
             OnPropertyChanged(nameof(LaunchTypeDescription));
+            OnPropertyChanged(nameof(IsDotnetProject));
+            OnPropertyChanged(nameof(IsUrl));
+            OnPropertyChanged(nameof(CanMonitorProcess));
+            OnPropertyChanged(nameof(CanViewLogs));
+            OnPropertyChanged(nameof(IsRunning));
         }
     }
 
@@ -133,6 +143,10 @@ public class AppInfo : INotifyPropertyChanged
                    target.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
         }
     }
+
+    public bool CanMonitorProcess => !IsUrl;
+
+    public bool CanViewLogs => !IsUrl;
 
     public string LaunchTypeDescription
     {
@@ -537,6 +551,7 @@ public class AppInfo : INotifyPropertyChanged
     {
         get
         {
+            if (IsUrl) return false;
             try
             {
                 return Process != null && !Process.HasExited;

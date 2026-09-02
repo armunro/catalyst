@@ -54,6 +54,8 @@ public class WindowService : IWindowService
 
     public void ShowLogViewer(AppInfo app, Window? owner = null)
     {
+        if (app == null || !app.CanViewLogs) return;
+
         if (_logWindows.TryGetValue(app.Name, out var existingWindow))
         {
             if (existingWindow.IsLoaded)

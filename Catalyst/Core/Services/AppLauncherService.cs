@@ -67,6 +67,8 @@ public class AppLauncherService : IAppLauncherService
 
     public async Task StopAppAsync(AppInfo app, Action<string>? onLog = null)
     {
+        if (app.IsUrl) return;
+
         if (app.Process != null)
         {
             string msg = $"Stopping {app.Name}...";
@@ -111,7 +113,7 @@ public class AppLauncherService : IAppLauncherService
     {
         foreach (var app in apps)
         {
-            if (!app.IsLaunchable) continue;
+            if (!app.IsLaunchable || app.IsUrl) continue;
 
             string target = app.LaunchTarget;
             string processName = Path.GetFileNameWithoutExtension(target);

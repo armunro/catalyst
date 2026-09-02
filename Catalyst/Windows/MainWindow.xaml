@@ -20,6 +20,7 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <root:InverseBooleanConverter x:Key="InverseBool"/>
         <root:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVis"/>
+        <root:BooleanToHiddenVisibilityConverter x:Key="BoolToHidden"/>
         <root:StringNullOrEmptyToVisibilityConverter x:Key="StringNullOrEmptyToVis"/>
         <root:NotNullToVisibilityConverter x:Key="NotNullToVis"/>
         <root:NullToVisibilityConverter x:Key="NullToVis"/>
@@ -124,8 +125,10 @@
         <ListBox Name="LstApps"
                  Grid.Row="2"
                  Margin="12,0,12,0"
+                 Padding="0"
                  Background="Transparent"
                  BorderThickness="0"
+                 Style="{StaticResource CatalystListBoxStyle}"
                  ItemContainerStyle="{StaticResource DittoCardItemStyle}"
                  SelectionChanged="LstApps_SelectionChanged"
                  MouseDoubleClick="LstApps_MouseDoubleClick"
@@ -151,7 +154,7 @@
                                         <ui:SymbolIcon Symbol="Stop24" Foreground="#F87171"/>
                                     </MenuItem.Icon>
                                 </MenuItem>
-                                <MenuItem Header="View Live Logs" Click="CtxMenuLogs_Click">
+                                <MenuItem Header="View Live Logs" Click="CtxMenuLogs_Click" Visibility="{Binding CanViewLogs, Converter={StaticResource BoolToVis}}">
                                     <MenuItem.Icon>
                                         <ui:SymbolIcon Symbol="DocumentBulletList24" Foreground="#60A5FA"/>
                                     </MenuItem.Icon>
@@ -259,7 +262,8 @@
                                     Padding="6,2"
                                     Margin="0,0,6,0"
                                     Background="#1AFFFFFF"
-                                    VerticalAlignment="Center">
+                                    VerticalAlignment="Center"
+                                    Visibility="{Binding CanMonitorProcess, Converter={StaticResource BoolToVis}}">
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                     <Ellipse Width="6" Height="6"
                                              Fill="{Binding StatusColor}"
@@ -298,7 +302,8 @@
                                        ToolTip="Live Logs (Ctrl+L / Double-click)"
                                        Padding="6,4"
                                        Tag="{Binding}"
-                                       Click="BtnItemLogs_Click"/>
+                                       Click="BtnItemLogs_Click"
+                                       Visibility="{Binding CanViewLogs, Converter={StaticResource BoolToHidden}}"/>
                         </StackPanel>
                     </Grid>
                 </DataTemplate>

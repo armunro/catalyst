@@ -141,6 +141,7 @@ public partial class AppManagementWindow : FluentWindow
 
             UpdateTypeBadge(app);
             UpdateColorPreviews();
+            UpdateResolvedPathLabels();
             _isUpdatingConfig = false;
 
             RegeneratePreview(app);
@@ -167,6 +168,7 @@ public partial class AppManagementWindow : FluentWindow
             TxtCustomGlyphSvg.Text = "";
             TxtSvgOverride.Text = "";
             LblTypeBadge.Text = "None Selected";
+            UpdateResolvedPathLabels();
             _isUpdatingConfig = false;
         }
     }
@@ -268,9 +270,155 @@ public partial class AppManagementWindow : FluentWindow
         else if (sender == TxtCustomGlyphSvg) app.CustomGlyphSvg = TxtCustomGlyphSvg.Text;
         else if (sender == TxtSvgOverride) app.SvgOverride = TxtSvgOverride.Text;
 
+        UpdateResolvedPathLabels();
+
         // Debounce icon regeneration preview
         _debounceTimer?.Dispose();
         _debounceTimer = new System.Threading.Timer(DebouncedRegeneratePreview, app, 300, System.Threading.Timeout.Infinite);
+    }
+
+    private void UpdateResolvedPathLabels()
+    {
+        if (LblResolvedProjectPath == null ||
+            LblResolvedWorkingDirectory == null ||
+            LblResolvedCustomGlyphSvg == null ||
+            LblResolvedSvgOverride == null ||
+            LblResolvedCatalystDirectory == null ||
+            LblResolvedFaviconPath == null)
+        {
+            return;
+        }
+
+        if (LstApps.SelectedItem is not AppInfo)
+        {
+            LblResolvedProjectPath.Text = "Full Path: ";
+            LblResolvedProjectPath.ToolTip = null;
+            LblResolvedWorkingDirectory.Text = "Full Path: ";
+            LblResolvedWorkingDirectory.ToolTip = null;
+            LblResolvedCustomGlyphSvg.Text = "Full Path: ";
+            LblResolvedCustomGlyphSvg.ToolTip = null;
+            LblResolvedSvgOverride.Text = "Full Path: ";
+            LblResolvedSvgOverride.ToolTip = null;
+            LblResolvedCatalystDirectory.Text = "Full Path: ";
+            LblResolvedCatalystDirectory.ToolTip = null;
+            LblResolvedFaviconPath.Text = "Full Path: ";
+            LblResolvedFaviconPath.ToolTip = null;
+            return;
+        }
+
+        string rootDir = RootDir;
+        string targetText = TxtProjectPath.Text?.Trim() ?? string.Empty;
+        string workDirText = TxtWorkingDirectory.Text?.Trim() ?? string.Empty;
+
+        string projPath = targetText.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
+                          targetText.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) ||
+                          targetText.EndsWith(".fsproj", StringComparison.OrdinalIgnoreCase) ||
+                          targetText.EndsWith(".vbproj", StringComparison.OrdinalIgnoreCase)
+            ? targetText
+            : string.Empty;
+        string execPath = string.IsNullOrEmpty(projPath) ? targetText : string.Empty;
+
+        string? projectDir = Catalyst.Core.Services.AppConfigurationService.GetProjectDirectory(projPath, workDirText, rootDir, execPath);
+
+        // 1. Launch Target
+        if (string.IsNullOrWhiteSpace(targetText))
+        {
+            LblResolvedProjectPath.Text = "Full Path: (None configured)";
+            LblResolvedProjectPath.ToolTip = null;
+        }
+        else if (targetText.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || targetText.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            LblResolvedProjectPath.Text = $"Target URL: {targetText}";
+            LblResolvedProjectPath.ToolTip = targetText;
+        }
+        else
+        {
+            string fullTarget = Catalyst.Core.Services.AppConfigurationService.ResolveExpectedFullPath(targetText, null, rootDir);
+            LblResolvedProjectPath.Text = $"Full Path: {fullTarget}";
+            LblResolvedProjectPath.ToolTip = fullTarget;
+        }
+
+        // 2. Working Directory
+        if (string.IsNullOrWhiteSpace(workDirText))
+        {
+            string defaultDir = !string.IsNullOrEmpty(projectDir) ? projectDir : (!string.IsNullOrEmpty(rootDir) ? rootDir : string.Empty);
+            LblResolvedWorkingDirectory.Text = !string.IsNullOrEmpty(defaultDir) ? $"Full Path (Default): {defaultDir}" : "Full Path: (Default)";
+            LblResolvedWorkingDirectory.ToolTip = defaultDir;
+        }
+        else
+        {
+            string fullWorkDir = Catalyst.Core.Services.AppConfigurationService.ResolveExpectedFullPath(workDirText, null, rootDir);
+            LblResolvedWorkingDirectory.Text = $"Full Path: {fullWorkDir}";
+            LblResolvedWorkingDirectory.ToolTip = fullWorkDir;
+        }
+
+        // 3. Custom Glyph SVG
+        string glyphText = TxtCustomGlyphSvg.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(glyphText))
+        {
+            LblResolvedCustomGlyphSvg.Text = "Full Path: (Not configured)";
+            LblResolvedCustomGlyphSvg.ToolTip = null;
+        }
+        else if (glyphText.StartsWith("<"))
+        {
+            LblResolvedCustomGlyphSvg.Text = "Source: Inline SVG XML";
+            LblResolvedCustomGlyphSvg.ToolTip = "Inline SVG XML";
+        }
+        else
+        {
+            string fullGlyph = Catalyst.Core.Services.AppConfigurationService.ResolveExpectedFullPath(glyphText, projectDir, rootDir);
+            LblResolvedCustomGlyphSvg.Text = $"Full Path: {fullGlyph}";
+            LblResolvedCustomGlyphSvg.ToolTip = fullGlyph;
+        }
+
+        // 4. Complete SVG Override
+        string overrideText = TxtSvgOverride.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(overrideText))
+        {
+            LblResolvedSvgOverride.Text = "Full Path: (Not configured)";
+            LblResolvedSvgOverride.ToolTip = null;
+        }
+        else if (overrideText.StartsWith("<"))
+        {
+            LblResolvedSvgOverride.Text = "Source: Inline SVG XML";
+            LblResolvedSvgOverride.ToolTip = "Inline SVG XML";
+        }
+        else
+        {
+            string fullOverride = Catalyst.Core.Services.AppConfigurationService.ResolveExpectedFullPath(overrideText, projectDir, rootDir);
+            LblResolvedSvgOverride.Text = $"Full Path: {fullOverride}";
+            LblResolvedSvgOverride.ToolTip = fullOverride;
+        }
+
+        // 5. Catalyst Directory
+        string catalystText = TxtCatalystDirectory.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(catalystText))
+        {
+            string defaultCatDir = Catalyst.Core.Services.AppConfigurationService.ResolveExpectedFullPath(string.Empty, projectDir, rootDir, ".catalyst");
+            LblResolvedCatalystDirectory.Text = $"Full Path (Default): {defaultCatDir}";
+            LblResolvedCatalystDirectory.ToolTip = defaultCatDir;
+        }
+        else
+        {
+            string fullCatDir = Catalyst.Core.Services.AppConfigurationService.ResolveExpectedFullPath(catalystText, projectDir, rootDir);
+            LblResolvedCatalystDirectory.Text = $"Full Path: {fullCatDir}";
+            LblResolvedCatalystDirectory.ToolTip = fullCatDir;
+        }
+
+        // 6. Project Favicon Path
+        string faviconText = TxtFaviconPath.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(faviconText))
+        {
+            string defaultFav = Catalyst.Core.Services.AppConfigurationService.ResolveExpectedFullPath(string.Empty, projectDir, rootDir, "favicon.ico");
+            LblResolvedFaviconPath.Text = $"Full Path (Default): {defaultFav}";
+            LblResolvedFaviconPath.ToolTip = defaultFav;
+        }
+        else
+        {
+            string fullFav = Catalyst.Core.Services.AppConfigurationService.ResolveExpectedFullPath(faviconText, projectDir, rootDir);
+            LblResolvedFaviconPath.Text = $"Full Path: {fullFav}";
+            LblResolvedFaviconPath.ToolTip = fullFav;
+        }
     }
 
     private void Config_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -467,7 +615,7 @@ public partial class AppManagementWindow : FluentWindow
         if (LstApps.SelectedItem is not AppInfo app) return;
 
         string rootDir = RootDir;
-        string? projectDir = Catalyst.Core.Services.AppConfigurationService.GetProjectDirectory(app.ProjectPath, app.WorkingDirectory, rootDir);
+        string? projectDir = Catalyst.Core.Services.AppConfigurationService.GetProjectDirectory(app.ProjectPath, app.WorkingDirectory, rootDir, app.ExecutablePath);
         string initialDir = !string.IsNullOrEmpty(projectDir) && Directory.Exists(Path.Combine(projectDir, "icons"))
             ? Path.Combine(projectDir, "icons")
             : (!string.IsNullOrEmpty(projectDir) && Directory.Exists(projectDir) ? projectDir : Path.Combine(rootDir, "icons"));
@@ -482,11 +630,11 @@ public partial class AppManagementWindow : FluentWindow
         if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
         {
             string path = dialog.FileName;
-            if (!string.IsNullOrEmpty(projectDir) && path.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(projectDir) && Catalyst.Core.Services.AppConfigurationService.IsSubPathOf(path, projectDir))
             {
                 path = Path.GetRelativePath(projectDir, path);
             }
-            else if (path.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
+            else if (Catalyst.Core.Services.AppConfigurationService.IsSubPathOf(path, rootDir))
             {
                 path = Path.GetRelativePath(rootDir, path);
             }
@@ -499,7 +647,7 @@ public partial class AppManagementWindow : FluentWindow
         if (LstApps.SelectedItem is not AppInfo app) return;
 
         string rootDir = RootDir;
-        string? projectDir = Catalyst.Core.Services.AppConfigurationService.GetProjectDirectory(app.ProjectPath, app.WorkingDirectory, rootDir);
+        string? projectDir = Catalyst.Core.Services.AppConfigurationService.GetProjectDirectory(app.ProjectPath, app.WorkingDirectory, rootDir, app.ExecutablePath);
         string initialDir = !string.IsNullOrEmpty(projectDir) && Directory.Exists(Path.Combine(projectDir, "icons"))
             ? Path.Combine(projectDir, "icons")
             : (!string.IsNullOrEmpty(projectDir) && Directory.Exists(projectDir) ? projectDir : Path.Combine(rootDir, "icons"));
@@ -514,11 +662,11 @@ public partial class AppManagementWindow : FluentWindow
         if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
         {
             string path = dialog.FileName;
-            if (!string.IsNullOrEmpty(projectDir) && path.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(projectDir) && Catalyst.Core.Services.AppConfigurationService.IsSubPathOf(path, projectDir))
             {
                 path = Path.GetRelativePath(projectDir, path);
             }
-            else if (path.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
+            else if (Catalyst.Core.Services.AppConfigurationService.IsSubPathOf(path, rootDir))
             {
                 path = Path.GetRelativePath(rootDir, path);
             }
@@ -531,7 +679,7 @@ public partial class AppManagementWindow : FluentWindow
         if (LstApps.SelectedItem is not AppInfo app) return;
 
         string rootDir = RootDir;
-        string? projectDir = Catalyst.Core.Services.AppConfigurationService.GetProjectDirectory(app.ProjectPath, app.WorkingDirectory, rootDir);
+        string? projectDir = Catalyst.Core.Services.AppConfigurationService.GetProjectDirectory(app.ProjectPath, app.WorkingDirectory, rootDir, app.ExecutablePath);
         string initialDir = !string.IsNullOrEmpty(projectDir) && Directory.Exists(projectDir) ? projectDir : rootDir;
 
         using var dialog = new System.Windows.Forms.OpenFileDialog
@@ -544,11 +692,11 @@ public partial class AppManagementWindow : FluentWindow
         if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
         {
             string path = dialog.FileName;
-            if (!string.IsNullOrEmpty(projectDir) && path.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(projectDir) && Catalyst.Core.Services.AppConfigurationService.IsSubPathOf(path, projectDir))
             {
                 path = Path.GetRelativePath(projectDir, path);
             }
-            else if (path.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
+            else if (Catalyst.Core.Services.AppConfigurationService.IsSubPathOf(path, rootDir))
             {
                 path = Path.GetRelativePath(rootDir, path);
             }
@@ -561,7 +709,7 @@ public partial class AppManagementWindow : FluentWindow
         if (LstApps.SelectedItem is not AppInfo app) return;
 
         string rootDir = RootDir;
-        string? projectDir = Catalyst.Core.Services.AppConfigurationService.GetProjectDirectory(app.ProjectPath, app.WorkingDirectory, rootDir);
+        string? projectDir = Catalyst.Core.Services.AppConfigurationService.GetProjectDirectory(app.ProjectPath, app.WorkingDirectory, rootDir, app.ExecutablePath);
         string baseDir = !string.IsNullOrEmpty(projectDir) && Directory.Exists(projectDir) ? projectDir : rootDir;
 
         string initialDir = !string.IsNullOrWhiteSpace(app.CatalystDirectory)
@@ -585,11 +733,11 @@ public partial class AppManagementWindow : FluentWindow
         if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
         {
             string path = dialog.SelectedPath;
-            if (!string.IsNullOrEmpty(projectDir) && path.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(projectDir) && Catalyst.Core.Services.AppConfigurationService.IsSubPathOf(path, projectDir))
             {
                 path = Path.GetRelativePath(projectDir, path);
             }
-            else if (path.StartsWith(rootDir, StringComparison.OrdinalIgnoreCase))
+            else if (Catalyst.Core.Services.AppConfigurationService.IsSubPathOf(path, rootDir))
             {
                 path = Path.GetRelativePath(rootDir, path);
             }

@@ -116,6 +116,8 @@
                     <ListBox Name="LstApps"
                              Background="Transparent"
                              BorderThickness="0"
+                             Padding="0"
+                             Style="{StaticResource CatalystListBoxStyle}"
                              ItemContainerStyle="{StaticResource ManageAppListItemStyle}"
                              SelectionChanged="LstApps_SelectionChanged"
                              PreviewKeyDown="LstApps_PreviewKeyDown"
@@ -341,7 +343,7 @@
                                                         TextChanged="Config_TextChanged" Margin="0,0,0,10"/>
 
                                             <TextBlock Text="Launch Target (.exe / .csproj / .sln / .bat / .ps1 / URL / shortcut)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
-                                            <Grid Margin="0,0,0,10">
+                                            <Grid Margin="0,0,0,3">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
@@ -353,6 +355,7 @@
                                                            Appearance="Secondary"
                                                            Click="BtnBrowseTarget_Click"/>
                                             </Grid>
+                                            <TextBlock Name="LblResolvedProjectPath" Text="Full Path: " Foreground="#64748B" FontSize="11" Margin="2,0,0,10" TextTrimming="CharacterEllipsis"/>
 
                                             <Grid Margin="0,0,0,6">
                                                 <Grid.ColumnDefinitions>
@@ -366,7 +369,7 @@
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1" Margin="6,0,0,0">
                                                     <TextBlock Text="Working Directory (Optional)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
-                                                    <Grid>
+                                                    <Grid Margin="0,0,0,3">
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*"/>
                                                             <ColumnDefinition Width="Auto"/>
@@ -377,6 +380,7 @@
                                                                    Appearance="Secondary" Padding="8,4"
                                                                    Click="BtnBrowseWorkingDir_Click"/>
                                                     </Grid>
+                                                    <TextBlock Name="LblResolvedWorkingDirectory" Text="Full Path: " Foreground="#64748B" FontSize="11" Margin="2,0,0,0" TextTrimming="CharacterEllipsis"/>
                                                 </StackPanel>
                                             </Grid>
                                         </StackPanel>
@@ -521,7 +525,7 @@
 
                                             <!-- Custom Glyph SVG -->
                                             <TextBlock Text="Custom Glyph SVG (File path or SVG XML / path data)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
-                                            <Grid Margin="0,0,0,10">
+                                            <Grid Margin="0,0,0,3">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
@@ -533,10 +537,11 @@
                                                            Appearance="Secondary"
                                                            Click="BtnBrowseGlyphSvg_Click"/>
                                             </Grid>
+                                            <TextBlock Name="LblResolvedCustomGlyphSvg" Text="Full Path: " Foreground="#64748B" FontSize="11" Margin="2,0,0,10" TextTrimming="CharacterEllipsis"/>
 
                                             <!-- Complete SVG Override -->
                                             <TextBlock Text="Complete SVG Override (Replaces entire icon tile with full SVG)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
-                                            <Grid>
+                                            <Grid Margin="0,0,0,3">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
@@ -548,6 +553,7 @@
                                                            Appearance="Secondary"
                                                            Click="BtnBrowseSvgOverride_Click"/>
                                             </Grid>
+                                            <TextBlock Name="LblResolvedSvgOverride" Text="Full Path: " Foreground="#64748B" FontSize="11" Margin="2,0,0,0" TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
@@ -583,7 +589,7 @@
                                             </Grid>
 
                                             <TextBlock Text=".catalyst Directory Location (Optional - defaults to .catalyst in project directory)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
-                                            <Grid Margin="0,0,0,8">
+                                            <Grid Margin="0,0,0,3">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
@@ -594,6 +600,7 @@
                                                            Appearance="Secondary" Padding="8,4"
                                                            Click="BtnBrowseCatalystDir_Click"/>
                                             </Grid>
+                                            <TextBlock Name="LblResolvedCatalystDirectory" Text="Full Path: " Foreground="#64748B" FontSize="11" Margin="2,0,0,4" TextTrimming="CharacterEllipsis"/>
                                             <TextBlock Text="Specifies the location of the .catalyst directory in the app's repository. Exporting saves app config and all assets needed to generate branding on another machine."
                                                        Foreground="#64748B" FontSize="11" TextWrapping="Wrap"/>
                                         </StackPanel>
@@ -618,7 +625,7 @@
                                             </Grid>
 
                                             <TextBlock Text="Project Favicon Path (Optional - defaults to relative project path e.g. wwwroot\favicon.ico)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
-                                            <Grid Margin="0,0,0,8">
+                                            <Grid Margin="0,0,0,3">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
@@ -629,6 +636,7 @@
                                                            Appearance="Secondary" Padding="8,4"
                                                            Click="BtnBrowseFavicon_Click"/>
                                             </Grid>
+                                            <TextBlock Name="LblResolvedFaviconPath" Text="Full Path: " Foreground="#64748B" FontSize="11" Margin="2,0,0,4" TextTrimming="CharacterEllipsis"/>
                                             <TextBlock Text="Copies generated favicon (.ico, .png, or .svg) to this app's project and updates &lt;ApplicationIcon&gt; in .csproj files."
                                                        Foreground="#64748B" FontSize="11" TextWrapping="Wrap"/>
                                         </StackPanel>
