@@ -10,7 +10,12 @@
         Icon="pack://application:,,,/favicon.ico"
         WindowBackdropType="Mica"
         ExtendsContentIntoTitleBar="True"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
+        RenderOptions.ClearTypeHint="Enabled"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
 
     <Grid Background="Transparent">
         <Grid.RowDefinitions>

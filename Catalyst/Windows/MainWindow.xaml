@@ -14,7 +14,12 @@
         ExtendsContentIntoTitleBar="True"
         WindowStartupLocation="Manual"
         ResizeMode="CanResizeWithGrip"
-        PreviewKeyDown="Window_PreviewKeyDown">
+        PreviewKeyDown="Window_PreviewKeyDown"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
+        RenderOptions.ClearTypeHint="Enabled"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>

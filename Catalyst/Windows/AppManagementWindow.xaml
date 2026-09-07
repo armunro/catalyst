@@ -12,7 +12,12 @@
         MinWidth="800" MinHeight="900"
         WindowBackdropType="Mica"
         ExtendsContentIntoTitleBar="True"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
+        RenderOptions.ClearTypeHint="Enabled"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>

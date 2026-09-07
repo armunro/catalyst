@@ -9,7 +9,12 @@
         WindowBackdropType="Mica"
         ExtendsContentIntoTitleBar="True"
         WindowStartupLocation="CenterOwner"
-        ResizeMode="CanResizeWithGrip">
+        ResizeMode="CanResizeWithGrip"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
+        RenderOptions.ClearTypeHint="Enabled"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
 
     <Grid Background="Transparent">
         <Grid.RowDefinitions>
