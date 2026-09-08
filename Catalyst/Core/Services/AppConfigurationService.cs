@@ -378,6 +378,7 @@ public class AppConfigurationService : IAppConfigurationService
             CustomGlyphSvg = customGlyphSvg,
             CustomGlyphColor = entry.Icon?.CustomGlyphColor ?? string.Empty,
             SvgOverride = svgOverride,
+            Padding = entry.Icon?.Padding ?? entry.Icon?.IconPadding,
             IsHidden = entry.Hidden
         };
 
@@ -544,6 +545,7 @@ public class AppConfigurationService : IAppConfigurationService
                 CustomGlyphSvg = customGlyphSvg,
                 CustomGlyphColor = app.CustomGlyphColor,
                 SvgOverride = svgOverride,
+                Padding = app.Padding,
                 IconPath = iconPath
             }
         };

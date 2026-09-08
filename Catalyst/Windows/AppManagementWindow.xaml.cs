@@ -138,6 +138,7 @@ public partial class AppManagementWindow : FluentWindow
             TxtBootstrapIcon.Text = app.BootstrapIcon;
             TxtCustomGlyphSvg.Text = app.CustomGlyphSvg;
             TxtSvgOverride.Text = app.SvgOverride;
+            TxtIconPadding.Text = app.Padding?.ToString() ?? "";
 
             UpdateTypeBadge(app);
             UpdateColorPreviews();
@@ -167,6 +168,7 @@ public partial class AppManagementWindow : FluentWindow
             TxtBootstrapIcon.Text = "";
             TxtCustomGlyphSvg.Text = "";
             TxtSvgOverride.Text = "";
+            TxtIconPadding.Text = "";
             LblTypeBadge.Text = "None Selected";
             UpdateResolvedPathLabels();
             _isUpdatingConfig = false;
@@ -269,6 +271,22 @@ public partial class AppManagementWindow : FluentWindow
         else if (sender == TxtBootstrapIcon) app.BootstrapIcon = TxtBootstrapIcon.Text;
         else if (sender == TxtCustomGlyphSvg) app.CustomGlyphSvg = TxtCustomGlyphSvg.Text;
         else if (sender == TxtSvgOverride) app.SvgOverride = TxtSvgOverride.Text;
+        else if (sender == TxtIconPadding)
+        {
+            string padText = TxtIconPadding.Text?.Trim() ?? "";
+            if (string.IsNullOrEmpty(padText))
+            {
+                app.Padding = null;
+            }
+            else
+            {
+                padText = padText.TrimEnd('%').Trim();
+                if (int.TryParse(padText, out int padVal))
+                {
+                    app.Padding = Math.Clamp(padVal, 0, 49);
+                }
+            }
+        }
 
         UpdateResolvedPathLabels();
 

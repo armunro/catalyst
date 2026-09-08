@@ -107,6 +107,7 @@ public class YamlConfigRepository : IConfigRepository
                 if (!string.IsNullOrWhiteSpace(app.Icon?.CustomGlyphSvg)) score += 2;
                 if (!string.IsNullOrWhiteSpace(app.Icon?.CustomGlyphColor)) score += 2;
                 if (!string.IsNullOrWhiteSpace(app.Icon?.SvgOverride)) score += 2;
+                if (app.Icon?.Padding.HasValue == true || app.Icon?.IconPadding.HasValue == true) score += 2;
             }
         }
 

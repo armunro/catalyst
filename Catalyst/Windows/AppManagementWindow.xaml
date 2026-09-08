@@ -493,6 +493,7 @@
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
 
                                                 <StackPanel Grid.Column="0" Margin="0,0,4,0">
@@ -514,9 +515,15 @@
                                                     </Grid>
                                                 </StackPanel>
 
-                                                <StackPanel Grid.Column="2" Margin="4,0,0,0">
+                                                <StackPanel Grid.Column="2" Margin="4,0,4,0">
                                                     <TextBlock Text="Bootstrap Icon Name" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
                                                     <ui:TextBox Name="TxtBootstrapIcon" PlaceholderText="e.g. send, copy, play"
+                                                                TextChanged="Config_TextChanged"/>
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="3" Margin="4,0,0,0">
+                                                    <TextBlock Text="Icon Padding (%)" Margin="0,0,0,3" Foreground="#94A3B8" FontSize="12"/>
+                                                    <ui:TextBox Name="TxtIconPadding" PlaceholderText="16"
                                                                 TextChanged="Config_TextChanged"/>
                                                 </StackPanel>
                                             </Grid>

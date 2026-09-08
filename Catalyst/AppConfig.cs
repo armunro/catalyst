@@ -39,4 +39,6 @@ public class IconConfig
     public string CustomGlyphSvg { get; set; } = string.Empty;
     public string CustomGlyphColor { get; set; } = string.Empty;
     public string SvgOverride { get; set; } = string.Empty;
+    public int? Padding { get; set; }
+    public int? IconPadding { get => Padding; set => Padding = value; }
 }

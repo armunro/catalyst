@@ -168,7 +168,8 @@ public class SkiaIconRenderer : IIconRenderer
                 var svg = LoadSvgContent(app.CustomGlyphSvg, projectDir, rootDir, glyphColor);
                 if (svg?.Picture != null)
                 {
-                    float padding = size * 0.16f;
+                    float paddingFraction = GetPaddingFraction(app.Padding);
+                    float padding = size * paddingFraction;
                     float glyphSize = size - (padding * 2);
                     DrawScaledPicture(canvas, svg.Picture, padding, padding, glyphSize, glyphSize, glyphColor);
                     return;
@@ -205,7 +206,8 @@ public class SkiaIconRenderer : IIconRenderer
                     svg.FromSvg(tintedSvg);
                     if (svg.Picture != null)
                     {
-                        float padding = size * 0.16f;
+                        float paddingFraction = GetPaddingFraction(app.Padding);
+                        float padding = size * paddingFraction;
                         float glyphSize = size - (padding * 2);
                         DrawScaledPicture(canvas, svg.Picture, padding, padding, glyphSize, glyphSize, bootstrapColor);
                         return;
@@ -228,7 +230,7 @@ public class SkiaIconRenderer : IIconRenderer
                 {
                     labelColor = parsedLabelColor;
                 }
-                DrawLabelText(canvas, app.Label, size, labelColor);
+                DrawLabelText(canvas, app.Label, size, labelColor, GetPaddingFraction(app.Padding));
             }
             catch (Exception ex)
             {
@@ -357,7 +359,18 @@ public class SkiaIconRenderer : IIconRenderer
         canvas.DrawPicture(picture, ref matrix, paint);
     }
 
-    private void DrawLabelText(SKCanvas canvas, string text, int size, SKColor? textColor = null)
+    private static float GetPaddingFraction(int? padding)
+    {
+        if (!padding.HasValue)
+        {
+            return 0.16f;
+        }
+
+        float pad = Math.Clamp(padding.Value, 0, 49);
+        return pad / 100f;
+    }
+
+    private void DrawLabelText(SKCanvas canvas, string text, int size, SKColor? textColor = null, float? paddingFraction = null)
     {
         using var textPaint = new SKPaint
         {
@@ -371,10 +384,14 @@ public class SkiaIconRenderer : IIconRenderer
             Typeface = SKTypeface.FromFamilyName("Segoe UI", SKFontStyle.Bold)
         };
 
+        float padFrac = paddingFraction ?? 0.16f;
+        float maxAllowedWidth = size * (1.0f - (padFrac * 2));
+        if (maxAllowedWidth < 10) maxAllowedWidth = size * 0.85f;
+
         float fontSize = size * 0.45f;
         textPaint.TextSize = fontSize;
         float textWidth = textPaint.MeasureText(text);
-        while (textWidth > size * 0.85f && fontSize > 12)
+        while (textWidth > maxAllowedWidth && fontSize > 12)
         {
             fontSize -= 4;
             textPaint.TextSize = fontSize;

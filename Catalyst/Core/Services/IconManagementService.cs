@@ -436,6 +436,7 @@ public class IconManagementService : IIconManagementService
                 CustomGlyphSvg = exportedGlyphSvgPath,
                 CustomGlyphColor = app.CustomGlyphColor,
                 SvgOverride = exportedSvgOverridePath,
+                Padding = app.Padding,
                 IconPath = exportedCustomIconPath,
                 FaviconPath = relFaviconPath
             }

@@ -64,17 +64,21 @@
         </Border>
 
         <!-- Console / RichTextBox -->
-        <Border Grid.Row="2" Margin="12,8,12,8" Background="#18181B" BorderBrush="#30FFFFFF" BorderThickness="1" CornerRadius="8" Padding="6">
+        <Border Grid.Row="2" Margin="12,8,12,8" Background="#18181B" BorderBrush="#30FFFFFF" BorderThickness="1" CornerRadius="8" Padding="8">
             <RichTextBox Name="RtbLogs"
                          Background="Transparent"
                          Foreground="#E4E4E7" 
                          BorderThickness="0"
-                         FontFamily="Cascadia Code, Consolas, monospace"
-                         FontSize="12"
+                         FontFamily="JetBrains Mono, JetBrains Mono NL, Cascadia Code, Cascadia Mono, Consolas"
+                         FontSize="12.5"
                          IsReadOnly="True"
                          IsDocumentEnabled="True"
                          VerticalScrollBarVisibility="Auto">
-                <FlowDocument PagePadding="0"/>
+                <FlowDocument PagePadding="2"
+                              LineHeight="18"
+                              LineStackingStrategy="BlockLineHeight"
+                              FontFamily="JetBrains Mono, JetBrains Mono NL, Cascadia Code, Cascadia Mono, Consolas"
+                              FontSize="12.5"/>
             </RichTextBox>
         </Border>
 

@@ -3109,6 +3109,185 @@ apps:
         Assert.Equal(dict["ForegroundColor"], brush.Color);
     }
 
+    [Fact]
+    public void IconPadding_YamlSerializationAndDeserialization_PreservesPadding()
+    {
+        var configRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystTests_Padding_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            string configPath = Path.Combine(tempDir, "catalyst.yaml");
+            var config = new AppConfigFile
+            {
+                Hotkey = "Alt+Space",
+                Apps = new List<AppConfigEntry>
+                {
+                    new AppConfigEntry
+                    {
+                        Name = "PaddingApp",
+                        Icon = new IconConfig
+                        {
+                            Color = "#FF5500",
+                            BootstrapIcon = "send",
+                            Padding = 8
+                        }
+                    }
+                }
+            };
+
+            configRepo.SaveConfigFile(config, configPath);
+            Assert.True(File.Exists(configPath));
+            string yamlText = File.ReadAllText(configPath);
+            Assert.Contains("padding: 8", yamlText);
+
+            var loaded = configRepo.LoadConfigFile(configPath);
+            Assert.NotNull(loaded);
+            Assert.Single(loaded.Apps);
+            Assert.Equal(8, loaded.Apps[0].Icon.Padding);
+            Assert.Equal(8, loaded.Apps[0].Icon.IconPadding);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void AppConfigurationService_MapsPaddingToAndFromAppInfo()
+    {
+        var configRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+        var settings = new Catalyst.Adapters.Persistence.JsonSettingsStorage();
+        var resolver = new Catalyst.Adapters.Persistence.PathResolver(settings);
+        var service = new Catalyst.Core.Services.AppConfigurationService(configRepo, settings, resolver);
+
+        var entry = new AppConfigEntry
+        {
+            Name = "PadTest",
+            Icon = new IconConfig
+            {
+                Color = "#123456",
+                BootstrapIcon = "play",
+                Padding = 5
+            }
+        };
+
+        var appInfo = service.ConvertToAppInfo(entry, @"C:\RootDir", @"C:\RootDir\icons");
+        Assert.Equal(5, appInfo.Padding);
+        Assert.Equal(5, appInfo.IconPadding);
+
+        var roundTripEntry = service.ConvertToConfigEntry(appInfo, @"C:\RootDir");
+        Assert.Equal(5, roundTripEntry.Icon.Padding);
+    }
+
+    [Fact]
+    public void IconManagementService_ExportCatalystFolder_PreservesPaddingInExportedYaml()
+    {
+        var renderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+        var configRepo = new Catalyst.Adapters.Persistence.YamlConfigRepository();
+        var settings = new Catalyst.Adapters.Persistence.JsonSettingsStorage();
+        var resolver = new Catalyst.Adapters.Persistence.PathResolver(settings);
+        var configService = new Catalyst.Core.Services.AppConfigurationService(configRepo, settings, resolver);
+        var iconService = new Catalyst.Core.Services.IconManagementService(renderer, configService);
+
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystTests_ExportPad_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var app = new AppInfo
+            {
+                Name = "ExportPadApp",
+                ProjectPath = Path.Combine(tempDir, "ExportPadApp.csproj"),
+                Color = "#336699",
+                BootstrapIcon = "gear",
+                Padding = 4
+            };
+
+            string exportedDir = iconService.ExportCatalystFolder(app);
+            string yamlPath = Path.Combine(exportedDir, "catalystApp.yaml");
+            Assert.True(File.Exists(yamlPath));
+            string yamlContent = File.ReadAllText(yamlPath);
+            Assert.Contains("padding: 4", yamlContent);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void SkiaIconRenderer_CustomPadding_RendersLargerGlyphWhenPaddingIsZero()
+    {
+        var renderer = new Catalyst.Adapters.Icons.SkiaIconRenderer();
+        string tempDir = Path.Combine(Path.GetTempPath(), "CatalystTests_RenderPad_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            string glyphSvg = @"<svg xmlns=""http://www.w3.org/2000/svg"" viewBox=""0 0 100 100"">
+                <rect x=""0"" y=""0"" width=""100"" height=""100"" fill=""#FFFFFF""/>
+            </svg>";
+
+            var defaultApp = new AppInfo
+            {
+                Name = "DefaultPadApp",
+                Color = "#FF0000",
+                CustomGlyphSvg = glyphSvg,
+                Padding = null // Defaults to 16% (0.16)
+            };
+
+            var zeroPadApp = new AppInfo
+            {
+                Name = "ZeroPadApp",
+                Color = "#FF0000",
+                CustomGlyphSvg = glyphSvg,
+                Padding = 0 // 0% padding = full bleed glyph
+            };
+
+            var largePadApp = new AppInfo
+            {
+                Name = "LargePadApp",
+                Color = "#FF0000",
+                CustomGlyphSvg = glyphSvg,
+                Padding = 30 // 30% padding
+            };
+
+            using var bmpDefault = renderer.RenderIconBitmap(defaultApp, 100, tempDir);
+            using var bmpZero = renderer.RenderIconBitmap(zeroPadApp, 100, tempDir);
+            using var bmpLarge = renderer.RenderIconBitmap(largePadApp, 100, tempDir);
+
+            // Count white pixels in glyph area
+            int whiteDefault = 0;
+            int whiteZero = 0;
+            int whiteLarge = 0;
+
+            for (int y = 0; y < 100; y++)
+            {
+                for (int x = 0; x < 100; x++)
+                {
+                    var colDef = bmpDefault.GetPixel(x, y);
+                    var colZero = bmpZero.GetPixel(x, y);
+                    var colLarge = bmpLarge.GetPixel(x, y);
+
+                    // White pixel for glyph
+                    if (colDef.Red > 240 && colDef.Green > 240 && colDef.Blue > 240) whiteDefault++;
+                    if (colZero.Red > 240 && colZero.Green > 240 && colZero.Blue > 240) whiteZero++;
+                    if (colLarge.Red > 240 && colLarge.Green > 240 && colLarge.Blue > 240) whiteLarge++;
+                }
+            }
+
+            // Zero padding must have the largest white area, followed by default (16%), followed by 30% padding
+            Assert.True(whiteZero > whiteDefault, $"Expected whiteZero ({whiteZero}) > whiteDefault ({whiteDefault})");
+            Assert.True(whiteDefault > whiteLarge, $"Expected whiteDefault ({whiteDefault}) > whiteLarge ({whiteLarge})");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
     private class MockLogWindowService : Catalyst.Adapters.UI.Navigation.IWindowService
     {
         private readonly Action _onShowLogViewer;

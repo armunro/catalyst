@@ -36,6 +36,7 @@ public class AppInfo : INotifyPropertyChanged
     private string _customGlyphSvg = string.Empty;
     private string _customGlyphColor = string.Empty;
     private string _svgOverride = string.Empty;
+    private int? _padding;
     private string _iconPath = string.Empty;
     private string _catalystDirectory = string.Empty;
     private string _shortcutIndex = string.Empty;
@@ -398,6 +399,23 @@ public class AppInfo : INotifyPropertyChanged
             OnPropertyChanged(); 
             OnPropertyChanged(nameof(CurrentIconMode));
         }
+    }
+
+    public int? Padding
+    {
+        get => _padding;
+        set
+        {
+            _padding = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IconPadding));
+        }
+    }
+
+    public int? IconPadding
+    {
+        get => Padding;
+        set => Padding = value;
     }
 
     public IconMode CurrentIconMode
